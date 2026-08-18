@@ -1,0 +1,65 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Red de seguridad para la pestaña Files.
+#
+# El camino normal de publicación es ./publicar.sh desde ~/UltraXFlies: compila,
+# copia a ultraxfiles/, sube el sello y empuja. Este workflow NO compila —el
+# código fuente de UltraXFiles no vive en este repositorio— sino que comprueba
+# que lo publicado es coherente, para que un despliegue a medias no pase
+# desapercibido y la PWA acabe sirviendo una mezcla de dos versiones.
+#
+# Falla si:
+#   · falta ultraxfiles/index.html
+#   · el index apunta a un asset que no está en el repositorio
+#   · el CACHE_NAME del service worker no se actualizó junto con el bundle
+# ─────────────────────────────────────────────────────────────────────────────
+name: Verifica UltraXFiles
+
+on:
+  push:
+    paths: ['ultraxfiles/**', 'sw.js', 'assets/app.js', 'index.html']
+  workflow_dispatch:
+
+jobs:
+  coherencia:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: El bundle existe
+        run: |
+          test -f ultraxfiles/index.html \
+            || { echo "::error::Falta ultraxfiles/index.html — corre ./publicar.sh"; exit 1; }
+
+      - name: Cada asset referenciado está presente
+        run: |
+          fallos=0
+          for ref in $(grep -oE '(src|href)="\./a/[^"]+"' ultraxfiles/index.html | sed -E 's/.*"\.\/(.*)"/\1/'); do
+            if [ ! -f "ultraxfiles/$ref" ]; then
+              echo "::error::El index referencia ultraxfiles/$ref y no está en el repositorio"
+              fallos=1
+            else
+              echo "  ok  $ref"
+            fi
+          done
+          exit $fallos
+
+      - name: La pestaña sigue conectada
+        run: |
+          grep -q 'data-view="files"' index.html \
+            || { echo '::error::index.html perdió el botón de la pestaña Files'; exit 1; }
+          grep -q 'id="view-files"' index.html \
+            || { echo '::error::index.html perdió la sección view-files'; exit 1; }
+          grep -q 'files: renderFiles' assets/app.js \
+            || { echo '::error::app.js perdió la ruta de Files'; exit 1; }
+
+      - name: El service worker se actualizó con el bundle
+        run: |
+          # Si cambió el bundle, CACHE_NAME tiene que haber cambiado también:
+          # sin eso, una PWA instalada sigue sirviendo la copia anterior.
+          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} 2>/dev/null | grep -q '^ultraxfiles/a/'; then
+            if ! git diff ${{ github.event.before }} ${{ github.sha }} -- sw.js | grep -q 'CACHE_NAME'; then
+              echo "::error::Cambió el bundle pero no CACHE_NAME en sw.js — la PWA instalada se quedaría con la versión vieja"
+              exit 1
+            fi
+          fi
+          echo "  ok  service worker coherente"

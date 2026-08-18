@@ -3,7 +3,7 @@
    No dependencies, no build, no network. State lives in localStorage.
    =========================================================================== */
 
-const BUILD = '2026.08.15-5';
+const BUILD = '2026.08.18-uxf1';
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -149,9 +149,9 @@ function renderAspectPicker() {
 
 /* ── Each room carries its own light, and each aspect re-tunes all six ── */
 const ROOM_ACCENT = {
-  khaslana: { dawn: '#f2803c', atlas: '#e8c88a', path: '#7fd8e8', chronicle: '#9b8cf0', embers: '#f0a7b8', setup: '#8b93a4' },
-  wanderer: { dawn: '#8fd3e8', atlas: '#cfe6f0', path: '#9b8cf0', chronicle: '#b9a2e0', embers: '#7fd8e8', setup: '#8792a8' },
-  alatus:   { dawn: '#7ec9a4', atlas: '#c9e4d2', path: '#4f9e84', chronicle: '#8fd3c0', embers: '#e8c88a', setup: '#7f8f8a' },
+  khaslana: { dawn: '#f2803c', atlas: '#e8c88a', path: '#7fd8e8', chronicle: '#9b8cf0', embers: '#f0a7b8', files: '#6ea8fe', setup: '#8b93a4' },
+  wanderer: { dawn: '#8fd3e8', atlas: '#cfe6f0', path: '#9b8cf0', chronicle: '#b9a2e0', embers: '#7fd8e8', files: '#7cb0f5', setup: '#8792a8' },
+  alatus:   { dawn: '#7ec9a4', atlas: '#c9e4d2', path: '#4f9e84', chronicle: '#8fd3c0', embers: '#e8c88a', files: '#6fbfd8', setup: '#7f8f8a' },
 };
 const roomAccent = (view) =>
   (ROOM_ACCENT[S.aspect] || ROOM_ACCENT.khaslana)[view] || '#e8c88a';
@@ -2432,12 +2432,58 @@ function runGate(i) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   FILES — UltraXFiles
+   ═══════════════════════════════════════════════════════════════════════
+
+   El archivo de evidencia es una aplicación aparte, compilada a
+   ./ultraxfiles/ y montada en un iframe. Tres decisiones que conviene no
+   deshacer:
+
+   · El src se pone la PRIMERA vez que entras, no al cargar Khaslana. Son
+     ~570 kB de bundle; cobrárselos a alguien que sólo viene a marcar la
+     March sería un impuesto sobre la vista más usada.
+   · Se le añade ?v= con el sello de build para que un service worker con
+     copia vieja no pueda devolver un index.html caducado.
+   · Si no carga —primera visita sin red, por ejemplo— se muestra una salida
+     en vez de un rectángulo negro.                                        */
+
+let filesMounted = false;
+
+function renderFiles() {
+  const frame = $('#uxfFrame');
+  const load  = $('#uxfLoad');
+  const fail  = $('#uxfFail');
+  if (!frame || filesMounted) return;
+  filesMounted = true;
+
+  const stamp = BUILD;   // el mismo sello que la cáscara: sube en cada publicación
+  const t = setTimeout(() => {                    // ni carga ni falla: red muerta
+    if (load) load.hidden = true;
+    if (fail) fail.hidden = false;
+  }, 12000);
+
+  frame.addEventListener('load', () => {
+    clearTimeout(t);
+    if (load) load.hidden = true;
+    if (fail) fail.hidden = true;
+  }, { once: true });
+
+  frame.addEventListener('error', () => {
+    clearTimeout(t);
+    if (load) load.hidden = true;
+    if (fail) fail.hidden = false;
+  }, { once: true });
+
+  frame.src = './ultraxfiles/index.html?v=' + encodeURIComponent(stamp);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    ROUTING
    ═══════════════════════════════════════════════════════════════════════ */
 
 const RENDER = {
   dawn: renderDawn, atlas: renderAtlas, path: renderPath,
-  chronicle: renderChronicle, embers: renderEmbers, setup: renderSetup,
+  chronicle: renderChronicle, embers: renderEmbers, files: renderFiles, setup: renderSetup,
 };
 const VIEWS = Object.keys(RENDER);
 

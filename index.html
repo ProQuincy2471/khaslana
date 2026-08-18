@@ -152,7 +152,13 @@
       <button data-view="embers" title="Embers — voices, yours and theirs (5)">
         <svg class="ico" viewBox="0 0 16 16"><path d="M8 1.7c2.4 2.7 4.1 4.5 4.1 7a4.1 4.1 0 0 1-8.2 0c0-1.4.5-2.4 1.5-3.5.3 1 .9 1.5 1.5 1.8C7.2 5.6 7 3.5 8 1.7z"/></svg>
         Embers <span class="tag" id="tagEmbers"></span></button>
-      <button data-view="setup" title="Setup — the March, shortcuts, motion, data (6)">
+      <button data-view="files" title="Files — the evidence archive (6)">
+        <svg class="ico" viewBox="0 0 16 16">
+          <path d="M2.2 4.1a1 1 0 0 1 1-1h3l1.2 1.6h5.4a1 1 0 0 1 1 1v6.2a1 1 0 0 1-1 1h-9.6a1 1 0 0 1-1-1z"/>
+          <path d="M5.2 7.4h5.6M5.2 9.6h3.6"/>
+        </svg>
+        Files <span class="tag" id="tagFiles">evidence</span></button>
+      <button data-view="setup" title="Setup — the March, shortcuts, motion, data (7)">
         <svg class="ico" viewBox="0 0 16 16"><path d="M2.6 4.4h10.8M2.6 8h10.8M2.6 11.6h10.8"/><circle cx="10.6" cy="4.4" r="1.5"/><circle cx="5.4" cy="8" r="1.5"/><circle cx="9.2" cy="11.6" r="1.5"/></svg>
         Setup <span class="tag">tools</span></button>
     </nav>
@@ -455,6 +461,30 @@
       <div class="filters" id="voiceFilters" style="margin-bottom:10px"></div>
       <div class="filters" id="toneFilters" style="margin-bottom:18px"></div>
       <div class="voices-grid" id="voicesGrid"></div>
+    </section>
+
+    <!-- ─── FILES ───
+         UltraXFiles vive en su propio bundle bajo ./ultraxfiles/ y se monta en
+         un iframe. No es pereza: son 2900 líneas de CSS de Khaslana contra el
+         sistema propio de UltraXFiles, y el iframe es la única frontera que
+         garantiza que ninguno de los dos le pise los estilos al otro.
+         El src se pone en el primer render (ver renderFiles en app.js), así que
+         no cuesta nada mientras no entres. -->
+    <section class="view" id="view-files">
+      <div class="uxf">
+        <div class="uxf-load" id="uxfLoad">
+          <span class="uxf-spin"></span>
+          <span>Abriendo el archivo…</span>
+        </div>
+        <iframe class="uxf-frame" id="uxfFrame" title="UltraXFiles — archivo de evidencia"
+                loading="lazy" referrerpolicy="no-referrer"></iframe>
+        <div class="uxf-fail" id="uxfFail" hidden>
+          <p><b>No se pudo abrir el archivo.</b></p>
+          <p class="uxf-fail-sub">Si acabas de instalar la app, vuelve a entrar con red
+             para que se guarde. También puedes abrirlo aparte.</p>
+          <a class="btn sm" id="uxfOut" href="./ultraxfiles/" target="_blank" rel="noopener">Abrir aparte ↗</a>
+        </div>
+      </div>
     </section>
 
     <!-- ─── SETUP ─── -->
