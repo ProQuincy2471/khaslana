@@ -2,5 +2,11 @@
   "name": "khaslana",
   "private": true,
   "version": "1.0.0",
-  "description": "ENARM 2026 — the daily march, the codex, the countdown."
+  "description": "ENARM 2026 — the daily march, the codex, the countdown.",
+  "scripts": {
+    "cloudflare-setup": "bash scripts/cloudflare-setup.sh"
+  },
+  "devDependencies": {
+    "wrangler": "^4.124.0"
+  }
 }
