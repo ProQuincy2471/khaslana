@@ -1049,8 +1049,9 @@ through — an API token or OAuth grant isn't something to hand to an assistant:
    This is what makes "push to GitHub" mean "the deployed version updates" — every push to
    `main` redeploys automatically from here on, which is the whole point of asking me to
    commit and push when a change is done rather than deploying by hand each time.
-3. **Create the KV store**: `wrangler login` (opens a browser, your own Cloudflare login),
-   then `wrangler kv namespace create khaslana-state`. It prints an id — paste that over
+3. **Create the KV store**: `wrangler` lives in `node_modules` now (`npm install` once pulls
+   it in), so it's `npx wrangler login` (opens your own Cloudflare login in the browser), then
+   `npx wrangler kv namespace create khaslana-state`. It prints an id — paste that over
    `REPLACE_WITH_YOUR_KV_NAMESPACE_ID` in `wrangler.toml`, commit, push.
 4. **Bind it to Pages**: dashboard → your Pages project → Settings → Functions → KV namespace
    bindings → variable name `KHASLANA_KV` → the namespace from step 3.
