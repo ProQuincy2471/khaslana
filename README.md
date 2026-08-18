@@ -1118,3 +1118,4 @@ data/prompts.js            Chronicle repertoire
 data/voices.js             Embers seed
 scripts/index-codex.mjs    the indexer
 ```
+
