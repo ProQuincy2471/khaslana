@@ -1003,14 +1003,18 @@ the same hairline SVG geometry can honestly disagree about whether it changed. A
 that either matches the one just written into the file or doesn't settles it in one
 glance, no eyeballing required.
 
-## Deploying — the phone, the Mac, one repo, one login
+## Deploying — GitHub end to end, nothing else
 
 Khaslana was local-only for most of this project: `abrir.command`, a Python server, whatever
 was in `localStorage` on whatever machine you opened it from. That stops being enough the
 moment a phone is involved — there's no `abrir.command` on iOS, and `localStorage` on a phone
 and `localStorage` on a Mac are two entirely separate drawers that never talk to each other.
 
-So three things had to actually change, not just get hosted somewhere:
+A Cloudflare-based version of this section existed briefly — Pages, Workers KV, Access — and
+got torn back out. Not because it was wrong, but because it needed a second account and a
+second login on top of the GitHub one already in use, and that login kept failing to complete.
+Everything here now runs on GitHub alone: the same account already pushing this code hosts it
+and holds its synced state, so there's exactly one login in the whole picture, not two.
 
 **The codex stopped being a symlink.** It pointed at `~/Desktop/All 101 ENARM` — real on this
 Mac, meaningless anywhere else. The 83 chapters are copied into `codex/` for real now (29MB,
@@ -1026,52 +1030,43 @@ chapter in and it shows up here after a re-scan; deployed, it needs the file act
 **It's a PWA now.** `manifest.json`, `sw.js`, and a set of icons cut from the same compass-dial
 language as everything else (`scripts/icon-gen.html` regenerates them if the mark ever
 changes). The service worker caches the shell and the chapters cache-first — instant open,
-quietly refreshing behind you — but anything under `/api/` is never touched by it, on purpose:
-that's the sync traffic, and a cached copy of "the current state" is exactly the bug that
-would make two devices each think they're looking at the latest one.
+quietly refreshing behind you.
 
-**State syncs now, not just saves.** `S.updatedAt` is a timestamp, set on every `save()`.
-`syncPush()` rides along after every local save, best-effort, and posts the whole state to
-`api/state`. `syncPull()` runs once at boot, after the page has already painted with whatever
-was local — it never blocks the first frame on a network round trip — and if the server has
-something newer, it overwrites the local copy and reloads once through the normal boot path.
-One writer, two devices, last-write-wins: there's no multi-user conflict to resolve here, so a
-timestamp is the whole merge strategy. `functions/api/state.js` is a Cloudflare Pages Function
-backed by one KV key — no database, no user table, one JSON document.
+**There's a lock screen.** Not real access control — everything in this repo is delivered to
+any browser that requests the URL, lock screen included, so anyone who opens dev tools can
+read the password's hash or flip the `localStorage` flag directly. What it actually does: stop
+someone from landing on the app by accident and seeing anything at all. `index.html`'s inline
+script runs before the rest of the page paints, checks a `sha256` of the password against what
+was typed (Web Crypto, no library, the plaintext password is never in the file), and remembers
+the unlock per device. Setup → Lock re-locks a device on demand.
 
-None of that needed an account to write. Deploying it does, and logging into an account is the
-one thing here that's structurally not automatable by an assistant — not a policy choice, a
-real one: completing OAuth or typing a password requires a human in that specific loop. So the
-whole deploy collapsed to as few of those moments as could actually be removed:
+**State syncs through the repo itself.** No separate backend — `syncPush()`/`syncPull()` read
+and write `data/state.json` directly through GitHub's own Contents API, authenticated with a
+personal access token that lives only in each device's `localStorage`, entered once per device
+in Setup → Sync. `S.updatedAt` is the merge strategy: whoever wrote most recently wins, which
+is enough because there's exactly one person writing, just from two places. The one real
+tradeoff, worth knowing: every push through the Contents API is a real commit, so `syncPush()`
+doesn't fire on every keystroke the way the local save does — it's throttled to once a minute,
+plus once when a tab is hidden or closed, so nothing's lost without turning every checkbox tick
+into its own line in the repo's history.
 
-1. **`npx wrangler login`** — opens Cloudflare's own login in your browser (an account gets
-   created right there if you don't have one yet). This is the one step nothing else here can
-   substitute for.
-2. **`npm run cloudflare:setup`** (or `bash scripts/cloudflare-setup.sh` directly) — once step 1
-   actually succeeded (`npx wrangler whoami` prints your account, not "not authenticated"), this
-   one script does everything else that's CLI-shaped: creates the Pages project, creates the KV
-   namespace, writes its id into `wrangler.toml`, sets `ALLOWED_EMAIL` as a Pages secret, and
-   deploys once by hand so something is live immediately. It prints exactly what's left when
-   it's done.
-3. **Cloudflare Access — the part that makes it actually private, and the other thing that
-   has to be a human clicking.** Zero Trust dashboard → Access → Applications → Add an
-   application → Self-hosted → the `*.pages.dev` domain the setup script printed → a policy
-   allowing exactly one identity, your email → login method "One-time PIN" (Cloudflare emails a
-   code, no separate password to manage). This is the door from the screenshot: nobody reaches
-   the app at all — not the login screen, not a 404, nothing — without that email passing the
-   policy first. Worth clicking through deliberately rather than having an assistant guess at
-   who should be allowed in.
-4. **Auto-deploy on push, optional but what "commit and push means it's live" actually needs**:
-   `.github/workflows/deploy.yml` already runs `wrangler pages deploy` on every push to `main` —
-   it just needs two secrets in the repo, once: a Cloudflare API token (dashboard → My Profile →
-   API Tokens → Create Token → "Edit Cloudflare Workers" template) and the account id (`npx
-   wrangler whoami`), added via `gh secret set CLOUDFLARE_API_TOKEN` and `gh secret set
-   CLOUDFLARE_ACCOUNT_ID`. Until those exist, step 2's manual deploy is what's live; add them
-   whenever, nothing breaks either way.
-5. **Add to Home Screen.** iPhone: Safari → Share → Add to Home Screen. Mac: Chrome/Edge show
+Getting it live:
+
+1. **A GitHub account** — already have one if you're reading this from the repo. Fresh chapters,
+   backups, everything else already assumed this.
+2. **Turn on Pages**: repo → Settings → Pages → Source: **Deploy from a branch** → `main`, `/`
+   (root). GitHub builds a URL like `https://<you>.github.io/<repo>/` — not listed or indexed
+   anywhere, but reachable by anyone who has it, which is exactly what the lock screen above is
+   for.
+3. **Make a sync token**: GitHub → Settings → Developer settings → Personal access tokens →
+   Fine-grained → scope it to *just this repo* → permission **Contents: Read and write**, nothing
+   broader. Paste it into Setup → Sync on each device, along with the repo as `owner/repo`. This
+   token is never committed — it lives in that device's `localStorage` only, sent to nowhere but
+   `api.github.com`.
+4. **Add to Home Screen.** iPhone: Safari → Share → Add to Home Screen. Mac: Chrome/Edge show
    an install icon in the address bar once the manifest is served; Safari uses File → Add to
    Dock. Either way it opens like a real app, full-screen, its own icon — same document,
-   whichever device you touched last.
+   whichever device you touched last, synced through the repo within about a minute.
 
 ## Adding your own material
 

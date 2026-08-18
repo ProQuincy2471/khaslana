@@ -390,40 +390,125 @@ function save() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   SYNC — the same state, on the phone and on the Mac
+   SYNC — the same state, on the phone and on the Mac, using GitHub itself
 
-   One document, no accounts, no merge logic beyond "whoever wrote last
-   wins" — this app has exactly one writer, just on two devices, so a
-   timestamp is enough. `api/state` only exists once this is deployed
-   behind it (Cloudflare Pages Functions + KV); locally, through
-   abrir.command, the fetch just 404s and both functions quietly do
-   nothing — the same graceful-absence pattern `scanCodex` already uses
-   for file://. Nothing here blocks on the network: a save always lands
-   in localStorage first and instantly, the push to the server rides
-   along after, best-effort. */
-function syncPush() {
-  fetch('api/state', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ state: S, updatedAt: S.updatedAt }),
-  }).catch(() => { /* offline, or not deployed yet — the local save already happened */ });
+   No Cloudflare, no second account: the backend is the GitHub repo this
+   app already lives in, written to directly from the browser via the
+   Contents API with a personal access token you generate once (Setup →
+   Sync) and that lives only in this device's localStorage — it's never
+   committed, never sent anywhere but api.github.com. One JSON file,
+   `data/state.json`, one writer at a time, last-write-wins by timestamp
+   — the same merge strategy the Cloudflare version had, just aimed at a
+   different backend.
+
+   The one real constraint of this approach, worth being honest about:
+   every push is a real git commit. Autosaving on every keystroke the way
+   `save()` does locally would flood the repo's history, so the push to
+   GitHub is throttled hard — at most once a minute, plus once when the
+   tab is hidden or closed, so nothing written is ever lost, it just
+   doesn't all become its own commit. */
+const GH_TOKEN_KEY = 'khaslana.gh.token.v1';
+const GH_REPO_KEY  = 'khaslana.gh.repo.v1';   // "owner/repo"
+const GH_PATH = 'data/state.json';
+
+function ghConfig() {
+  const token = localStorage.getItem(GH_TOKEN_KEY) || '';
+  const repo  = localStorage.getItem(GH_REPO_KEY) || '';
+  return token && repo && repo.includes('/') ? { token, repo } : null;
+}
+function ghSetConfig(token, repo) {
+  localStorage.setItem(GH_TOKEN_KEY, token);
+  localStorage.setItem(GH_REPO_KEY, repo);
+}
+function ghClearConfig() {
+  localStorage.removeItem(GH_TOKEN_KEY);
+  localStorage.removeItem(GH_REPO_KEY);
+}
+const b64encodeUtf8 = (str) => btoa(unescape(encodeURIComponent(str)));
+const b64decodeUtf8 = (b64) => decodeURIComponent(escape(atob(b64.replace(/\n/g, ''))));
+
+let ghSha = null;          // cached sha of the last known remote file
+let ghPushPending = false;
+let ghLastSyncedAt = 0;    // for the Setup status line
+
+async function ghGetFile(cfg) {
+  const res = await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${GH_PATH}`, {
+    headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json' },
+    cache: 'no-store',
+  });
+  if (res.status === 404) return { sha: null, doc: null };
+  if (!res.ok) throw new Error('github get ' + res.status);
+  const json = await res.json();
+  return { sha: json.sha, doc: JSON.parse(b64decodeUtf8(json.content)) };
 }
 
+function syncPush() {
+  ghPushPending = true;
+}
+
+async function ghFlush() {
+  const cfg = ghConfig();
+  if (!cfg || !ghPushPending) return;
+  ghPushPending = false;
+  try {
+    if (ghSha === null) {
+      const cur = await ghGetFile(cfg);
+      ghSha = cur.sha;
+    }
+    const body = {
+      message: 'sync ' + new Date(S.updatedAt).toISOString(),
+      content: b64encodeUtf8(JSON.stringify({ state: S, updatedAt: S.updatedAt }, null, 0)),
+    };
+    if (ghSha) body.sha = ghSha;
+    const res = await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${GH_PATH}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json', 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      ghSha = json.content.sha;
+      ghLastSyncedAt = Date.now();
+      renderSyncStatus();
+    } else if (res.status === 409) {
+      /* the other device wrote since we last checked — refetch the sha
+         and let the next tick retry rather than clobbering it blind */
+      ghSha = null;
+      ghPushPending = true;
+    }
+  } catch { /* offline, bad token, or not configured — local save already happened */ }
+}
+setInterval(ghFlush, 60000);
+document.addEventListener('visibilitychange', () => { if (document.hidden) ghFlush(); });
+window.addEventListener('pagehide', () => { if (ghPushPending) ghFlush(); });
+
 /* Runs once at boot, after the page has already painted with whatever was
-   local. If the server has something newer — written from the other
-   device since this one was last open — the local copy is replaced and
-   the page reloads once through the normal boot path, rather than trying
-   to hot-swap eighty screens' worth of already-rendered state by hand. */
-function syncPull() {
-  fetch('api/state', { cache: 'no-store' })
-    .then(r => r.ok ? r.json() : null)
-    .then(data => {
-      if (!data || !data.state || !data.updatedAt) return;
-      if (data.updatedAt <= (S.updatedAt || 0)) return;
-      localStorage.setItem(STORE, JSON.stringify({ ...data.state, updatedAt: data.updatedAt }));
-      location.reload();
-    })
-    .catch(() => { /* offline, or not deployed yet — local state stands */ });
+   local. If GitHub has something newer — written from the other device
+   since this one was last open — the local copy is replaced and the
+   page reloads once through the normal boot path, rather than trying to
+   hot-swap eighty screens' worth of already-rendered state by hand. */
+async function syncPull() {
+  const cfg = ghConfig();
+  if (!cfg) return;
+  try {
+    const cur = await ghGetFile(cfg);
+    ghSha = cur.sha;
+    if (!cur.doc || !cur.doc.updatedAt) return;
+    ghLastSyncedAt = Date.now();
+    if (cur.doc.updatedAt <= (S.updatedAt || 0)) return;
+    localStorage.setItem(STORE, JSON.stringify({ ...cur.doc.state, updatedAt: cur.doc.updatedAt }));
+    location.reload();
+  } catch { /* offline, bad token, or not configured yet — local state stands */ }
+}
+
+function renderSyncStatus() {
+  const el = $('#syncStatus');
+  if (!el) return;
+  const cfg = ghConfig();
+  if (!cfg) { el.textContent = 'Not connected.'; return; }
+  el.textContent = ghLastSyncedAt
+    ? `Connected to ${cfg.repo}. Last synced ${new Date(ghLastSyncedAt).toLocaleTimeString()}.`
+    : `Connected to ${cfg.repo}. Not synced yet this session.`;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -2552,6 +2637,22 @@ document.addEventListener('click', (ev) => {
     location.reload();
     return;
   }
+  if (t.id === 'btnSyncConnect') {
+    const repo = $('#syncRepo').value.trim();
+    const token = $('#syncToken').value.trim();
+    if (!repo.includes('/') || !token) { toast('Need owner/repo and a token'); return; }
+    ghSetConfig(token, repo);
+    ghSha = null;
+    $('#syncStatus').textContent = 'Connecting…';
+    syncPull().then(() => { renderSyncStatus(); toast('Connected'); });
+    return;
+  }
+  if (t.id === 'btnSyncDisconnect') {
+    ghClearConfig();
+    ghSha = null;
+    renderSyncStatus();
+    return;
+  }
 
   /* Dock tabs */
   const dtab = t.closest('button.dtab[data-dtab]');
@@ -2943,7 +3044,12 @@ scanCodex();
 
 /* Check the server once the page is already usable — never blocks the
    first paint on a network round-trip. */
-syncPull();
+{
+  const cfg = ghConfig();
+  if (cfg && $('#syncRepo')) $('#syncRepo').value = cfg.repo;   // the token stays blank — never re-shown
+  renderSyncStatus();
+}
+syncPull().then(renderSyncStatus);
 
 /* ═══════════════════════════════════════════════════════════════════════
    STALE TAB DETECTION

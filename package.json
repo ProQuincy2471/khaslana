@@ -2,13 +2,5 @@
   "name": "khaslana",
   "private": true,
   "version": "1.0.0",
-  "description": "ENARM 2026 — the daily march, the codex, the countdown.",
-  "scripts": {
-    "deploy": "wrangler pages deploy . --project-name=khaslana",
-    "kv:create": "wrangler kv namespace create khaslana-state",
-    "cloudflare:setup": "bash scripts/cloudflare-setup.sh"
-  },
-  "devDependencies": {
-    "wrangler": "^4.123.0"
-  }
+  "description": "ENARM 2026 — the daily march, the codex, the countdown."
 }

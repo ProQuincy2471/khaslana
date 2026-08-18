@@ -21,8 +21,9 @@
      below is delivered to any browser that requests this URL; this only
      keeps the app from being usable (and visible) until the right
      password is typed, so it stops someone stumbling onto the link, not
-     someone who opens dev tools. Cloudflare Access, when that's set up,
-     is the actual door — this is the one that exists in the meantime. ═══ -->
+     someone who opens dev tools. There's no server in front of this
+     deployment to do better than that — GitHub Pages serves whatever's
+     in the repo to whoever asks. This is the real door, not a stopgap. ═══ -->
 <div id="lockScreen">
   <div class="lock-card">
     <div class="lock-mark">◆</div>
@@ -557,6 +558,26 @@
               <button class="btn" id="btnForceReload">Reload now</button>
             </div>
             <div class="entry-sub" style="margin-top:12px">Build loaded in this tab: <span id="buildStampSetup">—</span></div>
+          </div>
+
+          <div class="card">
+            <h3 class="sect" style="margin-bottom:4px">Sync</h3>
+            <div class="entry-sub" style="margin-bottom:16px">
+              The phone and the Mac share one state through this GitHub repo — no separate
+              server. Needs a token this device keeps to itself: GitHub → Settings →
+              Developer settings → Personal access tokens → Fine-grained → scope it to just
+              this one repo, permission "Contents: Read and write". Paste it below with the
+              repo as <code>owner/name</code>. Do this on every device you want synced.
+            </div>
+            <div class="row" style="flex-direction:column;align-items:stretch;gap:8px">
+              <input id="syncRepo" type="text" placeholder="owner/repo">
+              <input id="syncToken" type="password" placeholder="Personal access token" autocomplete="off">
+            </div>
+            <div class="row" style="margin-top:10px">
+              <button class="btn" id="btnSyncConnect">Connect</button>
+              <button class="btn" id="btnSyncDisconnect">Disconnect</button>
+            </div>
+            <div class="entry-sub" style="margin-top:12px" id="syncStatus">Not connected.</div>
           </div>
 
           <div class="card">

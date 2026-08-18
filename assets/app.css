@@ -526,7 +526,7 @@ h3.sect {
 .btn.sm { padding: 6px 11px; font-size: 8.5px; }
 .btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
-input[type="text"], input[type="number"], input[type="date"], input[type="search"], textarea, select {
+input[type="text"], input[type="number"], input[type="date"], input[type="search"], input[type="password"], textarea, select {
   all: unset;
   box-sizing: border-box;
   width: 100%;
