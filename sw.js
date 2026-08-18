@@ -13,7 +13,7 @@
    Bump CACHE_NAME when the shell itself changes shape (new files added
    to CORE, a renamed asset) — old caches are swept on activate. */
 
-const CACHE_NAME = 'khaslana-2026.08.19-a';
+const CACHE_NAME = 'khaslana-2026.08.19-b';
 const CORE = [
   './',
   './index.html',
@@ -36,13 +36,32 @@ const CORE = [
   './ultraxfiles/index.html',
 ];
 
+/* Descarga y guarda un archivo del CORE — pero nunca a ciegas. Detrás de
+   Cloudflare Access, una petición sin la cookie de sesión todavía vigente
+   no da 404, da 200 con la página de login de Access en el cuerpo (tras
+   seguir la redirección sola, por dentro de fetch). `cache.add()` no
+   distingue eso de la respuesta real: la guardaría como si fuera
+   `data/codex-index.js`, y cache-first serviría esa página de login como
+   "el archivo" para siempre, sin importar cuántas veces se inicie sesión
+   después — nada vuelve a pedirla por red mientras haya algo en caché.
+   `res.redirected` es justo la señal de que eso pasó: se descarta esa
+   respuesta en vez de guardarla, y el archivo se queda sin cachear hasta
+   una visita donde sí llegue el real. */
+async function guardarSiEsReal(cache, url) {
+  try {
+    const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok || res.redirected) return;
+    await cache.put(url, res);
+  } catch { /* sin red en la instalación: este archivo se recoge después */ }
+}
+
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
-      /* addAll es todo-o-nada: si UltraXFiles todavía no está desplegado, la
-         instalación entera fallaría y la app se quedaría sin service worker.
-         Uno por uno, y lo que falte se recoge en el primer fetch. */
-      Promise.all(CORE.map((u) => cache.add(u).catch(() => null)))
+      /* Todo-o-nada rompería la instalación entera si un solo archivo (p.ej.
+         UltraXFiles, si aún no está desplegado) fallara. Uno por uno, y lo
+         que falte se recoge en el primer fetch normal. */
+      Promise.all(CORE.map((u) => guardarSiEsReal(cache, u)))
     ).then(() => self.skipWaiting())
   );
 });
@@ -81,7 +100,9 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(
       fetch(e.request)
         .then((res) => {
-          if (res.ok) {
+          /* redirected === Access (u otra puerta) devolvió su propio login en
+             vez del documento — no lo guardes como si fuera UltraXFiles. */
+          if (res.ok && !res.redirected) {
             const copia = res.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(e.request, copia));
           }
@@ -95,7 +116,9 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.match(e.request).then((cached) => {
       const network = fetch(e.request).then((res) => {
-        if (res.ok) caches.open(CACHE_NAME).then((cache) => cache.put(e.request, res.clone()));
+        /* Misma protección aquí: nunca reemplazar una copia buena en caché
+           — ni guardar la primera — con una redirección de login. */
+        if (res.ok && !res.redirected) caches.open(CACHE_NAME).then((cache) => cache.put(e.request, res.clone()));
         return res;
       }).catch(() => cached);
       /* Cache-first for anything already saved — instant open — with the
