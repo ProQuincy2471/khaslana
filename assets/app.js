@@ -296,6 +296,7 @@ const DEFAULT_STATE = {
   motion: 'auto',   // 'auto' | 'still' | 'subtle' | 'full'
   readZoom: 1,      // chapter zoom, shared by the panel and the full reader
   view: 'dawn',
+  updatedAt: 0,     // when this state was last written, anywhere — the sync clock
 };
 
 let S = load();
@@ -381,9 +382,48 @@ let saveTimer;
 function save() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
+    S.updatedAt = Date.now();
     try { localStorage.setItem(STORE, JSON.stringify(S)); }
     catch { toast('Could not save — storage is full'); }
+    syncPush();
   }, 180);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SYNC — the same state, on the phone and on the Mac
+
+   One document, no accounts, no merge logic beyond "whoever wrote last
+   wins" — this app has exactly one writer, just on two devices, so a
+   timestamp is enough. `api/state` only exists once this is deployed
+   behind it (Cloudflare Pages Functions + KV); locally, through
+   abrir.command, the fetch just 404s and both functions quietly do
+   nothing — the same graceful-absence pattern `scanCodex` already uses
+   for file://. Nothing here blocks on the network: a save always lands
+   in localStorage first and instantly, the push to the server rides
+   along after, best-effort. */
+function syncPush() {
+  fetch('api/state', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ state: S, updatedAt: S.updatedAt }),
+  }).catch(() => { /* offline, or not deployed yet — the local save already happened */ });
+}
+
+/* Runs once at boot, after the page has already painted with whatever was
+   local. If the server has something newer — written from the other
+   device since this one was last open — the local copy is replaced and
+   the page reloads once through the normal boot path, rather than trying
+   to hot-swap eighty screens' worth of already-rendered state by hand. */
+function syncPull() {
+  fetch('api/state', { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data || !data.state || !data.updatedAt) return;
+      if (data.updatedAt <= (S.updatedAt || 0)) return;
+      localStorage.setItem(STORE, JSON.stringify({ ...data.state, updatedAt: data.updatedAt }));
+      location.reload();
+    })
+    .catch(() => { /* offline, or not deployed yet — local state stands */ });
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -2896,6 +2936,10 @@ go(RENDER[S.view] ? S.view : 'dawn');
    you get — no command to remember, no step to forget on a Monday. */
 scanCodex();
 
+/* Check the server once the page is already usable — never blocks the
+   first paint on a network round-trip. */
+syncPull();
+
 /* ═══════════════════════════════════════════════════════════════════════
    STALE TAB DETECTION
 
@@ -2959,3 +3003,20 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) chec
 console.log('[khaslana] build', BUILD);
 const buildStampSetupEl = $('#buildStampSetup');
 if (buildStampSetupEl) buildStampSetupEl.textContent = BUILD;
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PWA — installable, and usable offline once opened once.
+
+   file:// has no service-worker support at all, so this only registers
+   when the page is actually being served — abrir.command's local server,
+   or wherever it ends up deployed. Update flow rides the stale-tab banner
+   above rather than duplicating it: a new service worker installs
+   silently in the background (`skipWaiting` takes it live immediately,
+   `clients.claim` hands it existing tabs), and the next `checkForUpdate`
+   tick or focus event is what actually tells you about it.
+   ═══════════════════════════════════════════════════════════════════════ */
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => { /* offline on first load: fine, just no SW yet */ });
+  });
+}

@@ -1003,6 +1003,71 @@ the same hairline SVG geometry can honestly disagree about whether it changed. A
 that either matches the one just written into the file or doesn't settles it in one
 glance, no eyeballing required.
 
+## Deploying — the phone, the Mac, one repo, one login
+
+Khaslana was local-only for most of this project: `abrir.command`, a Python server, whatever
+was in `localStorage` on whatever machine you opened it from. That stops being enough the
+moment a phone is involved — there's no `abrir.command` on iOS, and `localStorage` on a phone
+and `localStorage` on a Mac are two entirely separate drawers that never talk to each other.
+
+So three things had to actually change, not just get hosted somewhere:
+
+**The codex stopped being a symlink.** It pointed at `~/Desktop/All 101 ENARM` — real on this
+Mac, meaningless anywhere else. The 83 chapters are copied into `codex/` for real now (29MB,
+nothing to a repo) and travel with the code. Reading a chapter was always a direct
+`fetch('codex/<file>.html')` into an iframe by filename, never a folder listing, so this is a
+straight swap — a static host serves those files exactly the way the Python server did. The
+one thing that *doesn't* survive the swap is `scanCodex()`'s live folder-listing scan, which
+needs a server that hands out a directory index; Python's does, a static host doesn't. That
+already degraded gracefully before this (`if (!res.ok) throw` → falls back to the pre-built
+`data/codex-index.js`), so it just quietly does that everywhere but this Mac. Drop a new
+chapter in and it shows up here after a re-scan; deployed, it needs the file actually pushed.
+
+**It's a PWA now.** `manifest.json`, `sw.js`, and a set of icons cut from the same compass-dial
+language as everything else (`scripts/icon-gen.html` regenerates them if the mark ever
+changes). The service worker caches the shell and the chapters cache-first — instant open,
+quietly refreshing behind you — but anything under `/api/` is never touched by it, on purpose:
+that's the sync traffic, and a cached copy of "the current state" is exactly the bug that
+would make two devices each think they're looking at the latest one.
+
+**State syncs now, not just saves.** `S.updatedAt` is a timestamp, set on every `save()`.
+`syncPush()` rides along after every local save, best-effort, and posts the whole state to
+`api/state`. `syncPull()` runs once at boot, after the page has already painted with whatever
+was local — it never blocks the first frame on a network round trip — and if the server has
+something newer, it overwrites the local copy and reloads once through the normal boot path.
+One writer, two devices, last-write-wins: there's no multi-user conflict to resolve here, so a
+timestamp is the whole merge strategy. `functions/api/state.js` is a Cloudflare Pages Function
+backed by one KV key — no database, no user table, one JSON document.
+
+None of that needed an account to write. Deploying it does, and that part is yours to click
+through — an API token or OAuth grant isn't something to hand to an assistant:
+
+1. **Cloudflare account** (free) at [dash.cloudflare.com](https://dash.cloudflare.com) if you
+   don't have one.
+2. **Connect the repo.** Cloudflare dashboard → Workers & Pages → Create → Pages → Connect to
+   Git → pick `ENARMINDMK/khaslana`. Build settings: no build command, output directory `/`.
+   This is what makes "push to GitHub" mean "the deployed version updates" — every push to
+   `main` redeploys automatically from here on, which is the whole point of asking me to
+   commit and push when a change is done rather than deploying by hand each time.
+3. **Create the KV store**: `wrangler login` (opens a browser, your own Cloudflare login),
+   then `wrangler kv namespace create khaslana-state`. It prints an id — paste that over
+   `REPLACE_WITH_YOUR_KV_NAMESPACE_ID` in `wrangler.toml`, commit, push.
+4. **Bind it to Pages**: dashboard → your Pages project → Settings → Functions → KV namespace
+   bindings → variable name `KHASLANA_KV` → the namespace from step 3.
+5. **Set `ALLOWED_EMAIL`**: same Settings page → Environment variables → add `ALLOWED_EMAIL` =
+   your email. This is the belt-and-suspenders check inside `functions/api/state.js` — it
+   works even if Access below is ever misconfigured.
+6. **Cloudflare Access — the part that makes it actually private.** Zero Trust dashboard →
+   Access → Applications → Add an application → Self-hosted → point it at your Pages domain →
+   add a policy that allows exactly one identity, your email → login method "One-time PIN"
+   (Cloudflare emails you a code, no separate password to manage). This is the door from the
+   screenshot: nobody reaches the app at all — not the login screen, not a 404, nothing —
+   without that email passing the policy first.
+7. **Add to Home Screen.** iPhone: Safari → Share → Add to Home Screen. Mac: Chrome/Edge show
+   an install icon in the address bar once the manifest is served; Safari uses File → Add to
+   Dock. Either way it opens like a real app, full-screen, its own icon — same document,
+   whichever device you touched last.
+
 ## Adding your own material
 
 - **Embers** — add from the Embers room, or write them into `data/voices.js` so they live

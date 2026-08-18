@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>
+  html,body{margin:0;padding:0;background:#0a0e14;width:512px;height:512px;overflow:hidden;}
+  svg{display:block;width:512px;height:512px;}
+</style></head>
+<body>
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0%" stop-color="#161c27"/>
+      <stop offset="100%" stop-color="#0a0e14"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f3dba8"/>
+      <stop offset="100%" stop-color="#c99a4e"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="200" height="200" fill="url(#bg)"/>
+  <g stroke="#e8c88a" fill="none" stroke-linecap="round">
+    <circle cx="100" cy="100" r="88" stroke-width="2.4" opacity="0.55"/>
+    <circle cx="100" cy="100" r="80" stroke-width="1" opacity="0.3"/>
+  </g>
+  <g stroke="#e8c88a" stroke-width="1.6" opacity="0.5" stroke-linecap="round">
+    <path d="M100 12 L100 20 M100 180 L100 188 M12 100 L20 100 M180 100 L188 100"/>
+    <path d="M35 35 L41 41 M159 35 L153 41 M35 165 L41 159 M159 165 L153 159"/>
+  </g>
+  <g id="ticks" stroke="#e8c88a" stroke-width="1" opacity="0.35"></g>
+  <path d="M100 42 C122 76 130 100 116 122 C126 118 133 106 133 92 C133 122 112 144 100 158 C88 144 67 122 67 92 C67 106 74 118 84 122 C70 100 78 76 100 42 Z"
+        fill="url(#gold)" opacity="0.95"/>
+  <path d="M100 76 C108 92 111 104 104 116 C111 110 115 100 113 90 C118 106 108 128 100 140 C92 128 82 106 87 90 C85 100 89 110 96 116 C89 104 92 92 100 76 Z"
+        fill="#0a0e14" opacity="0.85"/>
+  <path d="M100 88 L108 108 L100 118 L92 108 Z" fill="#e8c88a" opacity="0.9"/>
+</svg>
+<script>
+  const ticks = document.getElementById('ticks');
+  let d = '';
+  for (let i = 0; i < 48; i++) {
+    const a = (i / 48) * Math.PI * 2;
+    const r0 = i % 4 === 0 ? 84 : 86.5, r1 = 88;
+    const x0 = 100 + r0 * Math.cos(a), y0 = 100 + r0 * Math.sin(a);
+    const x1 = 100 + r1 * Math.cos(a), y1 = 100 + r1 * Math.sin(a);
+    d += `M${x0.toFixed(2)} ${y0.toFixed(2)}L${x1.toFixed(2)} ${y1.toFixed(2)}`;
+  }
+  const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+  p.setAttribute('d', d);
+  ticks.appendChild(p);
+</script>
+</body></html>
