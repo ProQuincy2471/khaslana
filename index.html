@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KHASLANA</title>
+<link rel="stylesheet" href="assets/app.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='17' r='7' fill='%23f2803c'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<canvas id="sky"></canvas>
+
+<div class="shell">
+
+  <!-- ═══ RAIL ═══ -->
+  <aside class="rail">
+    <div class="sigil">
+      <div class="sigil-seal" id="sigilSeal" data-emblem="embers" data-stroke="2.1"></div>
+      <h1 id="sigilName">Phainon</h1>
+      <div class="sub" id="sigilSub">The long march to dawn</div>
+      <div class="asp-eyebrow">Walking as</div>
+      <div class="aspect-picker" id="aspectPicker"></div>
+    </div>
+
+    <div class="rail-flame">
+      <canvas id="railFlame"></canvas>
+      <div>
+        <div class="rf-n" id="rfN">0</div>
+        <div class="rf-k" id="rfK">Coreflame · days lit</div>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <button data-view="dawn" title="Dawn — today (1)">
+        <svg class="ico" viewBox="0 0 16 16">
+          <path d="M1.7 12.1h12.6"/>
+          <path d="M4.5 12.1a3.5 3.5 0 0 1 7 0"/>
+          <path d="M8 4.1V2.1M5.1 5 3.9 3.8M10.9 5l1.2-1.2"/>
+          <path d="M2.9 13.9v-1M13.1 13.9v-1"/>
+          <path d="M8 10.6 8.9 12.1 8 13.6 7.1 12.1z"/>
+        </svg>
+        Dawn <span class="tag">today</span></button>
+      <button data-view="atlas" title="Atlas — every chapter, list or graph (2)">
+        <svg class="ico" viewBox="0 0 16 16">
+          <circle cx="8" cy="6.7" r="4.7"/>
+          <path d="M8 2c1.9 1.7 1.9 7.7 0 9.4M8 2c-1.9 1.7-1.9 7.7 0 9.4"/>
+          <path d="M3.3 6.7h9.4"/>
+          <path d="M8 11.4v1.8M5.4 13.9h5.2"/>
+          <path d="M8 4.9 8.8 6.7 8 8.5 7.2 6.7z"/>
+        </svg>
+        Atlas <span class="tag" id="tagAtlas"></span></button>
+      <button data-view="path" title="Path — weeks remaining, ground held (3)">
+        <svg class="ico" viewBox="0 0 16 16">
+          <path d="M3.1 13.3 7.2 9.9l3 -1.5 2.6 -4"/>
+          <path d="M3.1 12.5 3.9 13.3 3.1 14.1 2.3 13.3z"/>
+          <path d="M10.2 7.1 11.1 8.4 10.2 9.7 9.3 8.4z"/>
+          <path d="M12.8 2.2 14.1 4.3 12.8 6.4 11.5 4.3z"/>
+        </svg>
+        Path <span class="tag" id="tagPath">the road</span></button>
+      <button data-view="chronicle" title="Chronicle — the daily journal (4)">
+        <svg class="ico" viewBox="0 0 16 16">
+          <path d="M3.4 2.4h9.2v11.2H3.4z"/>
+          <path d="M5.5 2.4v11.2"/>
+          <path d="M7.1 5.6h3.9M7.1 8h3.9M7.1 10.4h2.6"/>
+          <path d="M12.6 6.6 13.7 8 12.6 9.4 11.5 8z"/>
+        </svg>
+        Chronicle <span class="tag" id="tagChronicle">journal</span></button>
+      <button data-view="embers" title="Embers — voices, yours and theirs (5)">
+        <svg class="ico" viewBox="0 0 16 16"><path d="M8 1.7c2.4 2.7 4.1 4.5 4.1 7a4.1 4.1 0 0 1-8.2 0c0-1.4.5-2.4 1.5-3.5.3 1 .9 1.5 1.5 1.8C7.2 5.6 7 3.5 8 1.7z"/></svg>
+        Embers <span class="tag" id="tagEmbers"></span></button>
+      <button data-view="setup" title="Setup — the March, shortcuts, motion, data (6)">
+        <svg class="ico" viewBox="0 0 16 16"><path d="M2.6 4.4h10.8M2.6 8h10.8M2.6 11.6h10.8"/><circle cx="10.6" cy="4.4" r="1.5"/><circle cx="5.4" cy="8" r="1.5"/><circle cx="9.2" cy="11.6" r="1.5"/></svg>
+        Setup <span class="tag">tools</span></button>
+    </nav>
+
+    <div class="rail-glass empty" id="railGlass"></div>
+
+    <div class="rail-foot">
+      <button class="gate-hint" id="gateOpen">
+        <span>Search anything</span><kbd>⌘K</kbd>
+      </button>
+      <div class="countdown-mini" id="railCount"></div>
+      <div class="build" id="buildStamp"></div>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN ═══ -->
+  <main class="main">
+
+    <!-- ─── DAWN ─── -->
+    <section class="view" id="view-dawn">
+      <div class="watermark" data-emblem="dawn"></div>
+
+      <header class="aurora-head">
+        <div>
+          <div class="datestamp" id="dateStamp"></div>
+          <h2 class="greeting" id="greeting"></h2>
+          <p class="aspect-line" id="aspectLine"></p>
+        </div>
+        <div class="countdown">
+          <div class="num" id="cdNum">—</div>
+          <div class="cap" id="cdCap"></div>
+          <div class="cap sub" id="cdSub"></div>
+        </div>
+      </header>
+      <div class="room-note" data-room="dawn"></div>
+
+      <div class="vitals" id="vitals"></div>
+
+      <div class="weekline" id="weekLine"></div>
+
+      <div class="shortcuts" id="shortcuts"></div>
+
+      <div class="verse" id="verse"></div>
+
+      <div class="aurora-grid">
+        <div class="card ritual">
+          <div class="ritual-head">
+            <div>
+              <h3 class="sect">The March</h3>
+              <div class="entry-sub" id="ritualDay"></div>
+            </div>
+            <div class="row" style="gap:6px">
+              <button class="btn sm ghost" id="ritualBack" hidden>Back to today</button>
+              <button class="btn sm ghost" data-goto="setup">Edit</button>
+            </div>
+          </div>
+          <div class="ritual-list" id="ritualList"></div>
+          <div class="dayline">
+            <div class="bar"><i id="dayBar" style="width:0%"></i></div>
+            <div class="meta"><span id="dayMeta">—</span><span id="dayPct">0%</span></div>
+          </div>
+        </div>
+
+        <div class="aside-stack">
+          <div class="card nextblock" id="nextBlock"></div>
+          <div class="card focus-card" id="focusCard"></div>
+
+          <div class="card constel">
+            <div class="constel-head">
+              <div class="cn">Ground claimed</div>
+              <span class="pill" id="constelCount"></span>
+            </div>
+            <canvas id="constelMini"></canvas>
+            <div class="constel-foot">Each chapter is a star. They join as you claim them.</div>
+          </div>
+
+          <div class="card">
+            <div class="cal-head">
+              <button class="cal-nav" id="dcPrev" title="Previous month">‹</button>
+              <div class="cal-month" id="dcMonth"></div>
+              <button class="cal-nav" id="dcNext" title="Next month">›</button>
+            </div>
+            <div class="cal-grid" id="dcGrid"></div>
+            <div class="cal-legend" id="dcLegend"></div>
+          </div>
+
+          <div class="card scratch">
+            <div class="scratch-head">
+              <h3 class="sect">Scratch</h3>
+              <span class="entry-sub" id="scratchMeta"></span>
+            </div>
+            <textarea id="scratchPad" placeholder="Anything that shows up mid-day and shouldn't be lost. Stays here.&#10;Write a day in the line — jueves 8pm, 12/09, mañana — and it offers to join the March."></textarea>
+            <div class="sc-catch" id="scratchCatch"></div>
+          </div>
+
+          <div class="card" id="nextRelease"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── ATLAS ─── -->
+    <section class="view" id="view-atlas">
+      <div class="watermark" data-emblem="atlas"></div>
+
+      <header class="head-row">
+        <div>
+          <div class="eyebrow"><svg class="mark" viewBox="0 0 12 12"><path d="M6 .8 9.4 6 6 11.2 2.6 6z"/><path d="M6 3.4 7.7 6 6 8.6 4.3 6z"/></svg> Everything unsealed so far</div>
+          <h2 class="title">Atlas</h2>
+          <p class="lede">Every chapter you've generated — titles, aliases, section headings and
+             the full body text, all searchable and accent-blind. Press <kbd>/</kbd> from anywhere.
+             Click a chapter to open it alongside.</p>
+        </div>
+        <div class="row"><button class="btn sm" id="btnReindex">How to reindex</button></div>
+      </header>
+      <div class="room-note" data-room="atlas"></div>
+
+      <div class="codex-controls">
+        <div class="searchbar">
+          <input type="search" id="codexSearch" placeholder="a pathogen, a syndrome, a drug…" autocomplete="off">
+          <span class="icon">⌕</span>
+        </div>
+        <div class="filters" id="codexFilters"></div>
+        <div class="filters" id="stageFilters"></div>
+        <div class="view-toggle" id="viewToggle">
+          <button class="vt on" data-vt="list" title="List">
+            <svg viewBox="0 0 16 16"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg>
+          </button>
+          <button class="vt" data-vt="graph" title="Graph — how the chapters connect">
+            <svg viewBox="0 0 16 16">
+              <circle cx="4" cy="4" r="1.5"/><circle cx="12.5" cy="3.5" r="1.5"/>
+              <circle cx="3.5" cy="12" r="1.5"/><circle cx="12" cy="12.5" r="1.8"/><circle cx="8" cy="8" r="1.3"/>
+              <path d="M4 4 8 8M12.5 3.5 8 8M3.5 12 8 8M12 12.5 8 8" stroke-width="0.9"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="codex-grid" id="codexGrid"></div>
+
+      <div class="codex-graph" id="codexGraph" hidden>
+        <canvas id="graphCanvas"></canvas>
+        <div class="graph-hud">
+          <div class="zoomer" data-zoom-for="graph">
+            <button data-gz="-1" title="Smaller (−)">−</button>
+            <button class="z-val" data-gz="0" title="Fit (0)">fit</button>
+            <button data-gz="1" title="Bigger (+)">+</button>
+          </div>
+          <button class="btn sm ghost" id="graphRelax" title="Let the layout settle again">Reflow</button>
+        </div>
+        <div class="graph-legend" id="graphLegend"></div>
+        <div class="graph-card" id="graphCard" hidden></div>
+        <div class="graph-focus-hud" id="graphFocusHud" hidden>
+          <span>Focused on <b id="graphFocusName"></b></span>
+          <button id="graphFocusClear" title="Back to the whole constellation (Esc)">Clear ×</button>
+        </div>
+        <div class="graph-hint">Drag a chapter to move it · drag the field to pan · scroll to zoom · click to
+          read · double-click to focus a chapter's connections</div>
+      </div>
+    </section>
+
+    <!-- ─── PATH ─── -->
+    <section class="view" id="view-path">
+      <div class="watermark" data-emblem="path"></div>
+
+      <header class="head-row">
+        <div>
+          <div class="eyebrow"><svg class="mark" viewBox="0 0 12 12"><path d="M6 .8 9.4 6 6 11.2 2.6 6z"/><path d="M6 3.4 7.7 6 6 8.6 4.3 6z"/></svg> What's left of the road</div>
+          <h2 class="title">Path</h2>
+          <p class="lede">The weeks that remain, the ground held on each Path, and every trial
+             you've sat. This is where you find out whether the plan is working.</p>
+        </div>
+      </header>
+      <div class="room-note" data-room="path"></div>
+
+      <div class="card" style="margin-bottom:22px;padding:0">
+        <div class="constel-head" style="padding:20px 24px 12px">
+          <div class="cn">The figure so far</div>
+          <span class="pill" id="constelCount2"></span>
+        </div>
+        <canvas id="constelBig"></canvas>
+        <div class="constel-foot" style="padding:12px 24px 18px">
+          Rings are chapters you've opened. Filled stars are ground you hold.
+        </div>
+      </div>
+
+      <div class="path-grid">
+        <div class="stack">
+          <div class="card">
+            <h3 class="sect" style="margin-bottom:4px">Weeks</h3>
+            <div class="entry-sub" style="margin-bottom:12px">New chapters unseal every Monday</div>
+            <div id="weekStrip"></div>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="card">
+            <h3 class="sect" style="margin-bottom:14px">The Paths</h3>
+            <div id="areaProgress"></div>
+          </div>
+
+          <div class="card">
+            <h3 class="sect" style="margin-bottom:4px">Trials</h3>
+            <div class="entry-sub" style="margin-bottom:16px">Log every block of questions you sit</div>
+            <div class="spark" id="simSpark"></div>
+            <div class="sim-form">
+              <div><label class="field-label">What</label><input type="text" id="simName" placeholder="Infectious disease · block 1"></div>
+              <div><label class="field-label">Total</label><input type="number" id="simTotal" placeholder="30" min="1"></div>
+              <div><label class="field-label">Right</label><input type="number" id="simRight" placeholder="21" min="0"></div>
+              <button class="btn primary" id="simAdd">Log</button>
+            </div>
+            <div id="simList"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── CHRONICLE ─── -->
+    <section class="view" id="view-chronicle">
+      <div class="watermark" data-emblem="chronicle"></div>
+
+      <header class="head-row">
+        <div>
+          <div class="eyebrow"><svg class="mark" viewBox="0 0 12 12"><path d="M6 .8 9.4 6 6 11.2 2.6 6z"/><path d="M6 3.4 7.7 6 6 8.6 4.3 6z"/></svg> The daily record</div>
+          <h2 class="title">Chronicle</h2>
+          <p class="lede">The questions are in Spanish on purpose — it is easier to say something true
+             in the language you think in. They change daily and won't repeat until the whole
+             repertoire is spent. Saves itself as you write; hit
+             <span style="color:var(--ember)">⟳</span> on anything you don't feel like answering.</p>
+        </div>
+        <div class="row"><button class="btn sm ghost" id="btnToday">Jump to today</button></div>
+      </header>
+      <div class="room-note" data-room="chronicle"></div>
+
+      <div class="journal-wrap">
+        <div class="card entry-card" id="entryCard"></div>
+        <div class="journal-side">
+          <div class="card" style="padding:18px 18px 16px">
+            <div class="cal-head">
+              <button class="cal-nav" id="calPrev" title="Previous month">‹</button>
+              <div class="cal-month" id="calMonth"></div>
+              <button class="cal-nav" id="calNext" title="Next month">›</button>
+            </div>
+            <div class="cal-grid" id="calGrid"></div>
+            <div class="cal-legend" id="calLegend"></div>
+          </div>
+
+          <div class="card" id="chronStats"></div>
+
+          <div class="card" style="padding:16px 0 8px">
+            <h3 class="sect" style="padding:0 16px 10px">Entries</h3>
+            <div style="padding:0 16px 10px">
+              <input type="search" id="journalSearch" placeholder="Search everything you've written…"
+                     style="font-size:13px;padding:8px 11px">
+            </div>
+            <div class="hist-list" id="histList"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── EMBERS ─── -->
+    <section class="view" id="view-embers">
+      <div class="watermark" data-emblem="embers"></div>
+
+      <header class="head-row">
+        <div>
+          <div class="eyebrow"><svg class="mark" viewBox="0 0 12 12"><path d="M6 .8 9.4 6 6 11.2 2.6 6z"/><path d="M6 3.4 7.7 6 6 8.6 4.3 6z"/></svg> What holds the line</div>
+          <h2 class="title">Embers</h2>
+          <p class="lede">What your people have told you, what you tell yourself, and the
+             inscriptions. One of them surfaces in Dawn every morning — and what your
+             friends said counts double.</p>
+        </div>
+      </header>
+      <div class="room-note" data-room="embers"></div>
+
+      <div class="card" style="margin-bottom:24px">
+        <h3 class="sect" style="margin-bottom:14px">Add an ember</h3>
+        <div style="display:grid;gap:12px">
+          <div>
+            <label class="field-label">The message, exactly as it was said</label>
+            <textarea id="vText" placeholder="Paste it without editing. The exact words are the ones that work."></textarea>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 180px auto;gap:12px;align-items:end">
+            <div><label class="field-label">Who said it</label><input type="text" id="vWho" placeholder="Your friend's name"></div>
+            <div>
+              <label class="field-label">Tone</label>
+              <select id="vTone">
+                <option value="flame">Flame · drive</option>
+                <option value="road">Road · perspective</option>
+                <option value="anchor">Anchor · steadiness</option>
+              </select>
+            </div>
+            <button class="btn primary" id="vAdd">Keep</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card drawn" id="drawnEmber"></div>
+
+      <div class="filters" id="voiceFilters" style="margin-bottom:10px"></div>
+      <div class="filters" id="toneFilters" style="margin-bottom:18px"></div>
+      <div class="voices-grid" id="voicesGrid"></div>
+    </section>
+
+    <!-- ─── SETUP ─── -->
+    <section class="view" id="view-setup">
+      <div class="watermark" data-emblem="setup"></div>
+
+      <header class="head-row">
+        <div>
+          <div class="eyebrow"><svg class="mark" viewBox="0 0 12 12"><path d="M6 .8 9.4 6 6 11.2 2.6 6z"/><path d="M6 3.4 7.7 6 6 8.6 4.3 6z"/></svg> Where the tools are kept</div>
+          <h2 class="title">Setup</h2>
+        </div>
+      </header>
+      <div class="room-note" data-room="setup"></div>
+
+      <div class="settings-grid">
+        <div class="stack">
+          <div class="card">
+            <h3 class="sect" style="margin-bottom:4px">The March</h3>
+            <div class="entry-sub" style="margin-bottom:16px">What shows up in Dawn each day. Set per weekday.</div>
+            <div class="daytabs" id="dayTabs"></div>
+            <div id="tmplRows"></div>
+            <div class="row" style="margin-top:14px">
+              <button class="btn sm" id="tmplAdd">+ Add block</button>
+              <button class="btn sm ghost" id="tmplCopy">Copy to all weekdays</button>
+              <button class="btn sm ghost" id="tmplReset">Reset all to defaults</button>
+            </div>
+            <div class="entry-sub" style="margin-top:14px;line-height:1.8;text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:12.5px">
+              Changing this only affects days you haven't opened yet. Past days keep what they actually were.
+            </div>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="card">
+            <h3 class="sect" style="margin-bottom:4px">The emblems</h3>
+            <div class="entry-sub" style="margin-bottom:18px">What each figure is, and what it refers to</div>
+            <div class="lore-grid" id="loreGrid"></div>
+            <p style="font-size:11.5px;color:var(--faint);line-height:1.75;margin-top:18px">
+              All six are generated from geometry rather than drawn, and none reproduce any
+              artwork or dialogue — they reference the stories, they do not copy them.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3 class="sect" style="margin-bottom:4px">Shortcuts</h3>
+            <div class="entry-sub" style="margin-bottom:16px">The row on Dawn. Anything you keep reaching for.</div>
+            <div id="scRows"></div>
+            <div class="row" style="margin-top:14px">
+              <button class="btn sm" id="scAdd">+ Add shortcut</button>
+              <button class="btn sm ghost" id="scReset">Reset to defaults</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="sect" style="margin-bottom:14px">The date</h3>
+            <label class="field-label">First day of the ENARM</label>
+            <input type="date" id="examDate">
+            <div class="entry-sub" style="margin-top:10px">ENARM 2026 — September 28, 29 and 30</div>
+          </div>
+
+          <div class="card">
+            <h3 class="sect" style="margin-bottom:4px">The Atlas folder</h3>
+            <div class="entry-sub scan-status" id="scanStatus">…</div>
+            <p style="font-size:13px;color:var(--dimmer);margin:14px 0 12px;line-height:1.7">
+              Whatever is in the folder is what you get. Drop new chapters in and reload —
+              they are read and indexed here, once, and remembered after that.
+            </p>
+            <div class="row">
+              <button class="btn" id="btnRescan">Scan the folder now</button>
+              <button class="btn ghost sm" id="btnForget">Forget cached</button>
+            </div>
+            <details style="margin-top:16px">
+              <summary style="font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--dimmer);cursor:pointer">Pre-build the index instead</summary>
+              <p style="font-size:12px;color:var(--faint);margin:10px 0;line-height:1.7">
+                Optional. Saves the browser the parsing on a big batch, and rebuilds the
+                <code>codex/</code> link if you move the source folder.
+              </p>
+              <div class="code" id="reindexCmd"></div>
+              <div class="entry-sub" style="margin-top:10px;line-height:1.7" id="indexInfo"></div>
+            </details>
+          </div>
+
+          <div class="card">
+            <h3 class="sect" style="margin-bottom:4px">Motion</h3>
+            <div class="entry-sub" id="motionStatus">…</div>
+            <p style="font-size:13px;color:var(--dimmer);margin:14px 0 12px;line-height:1.7">
+              A page can't switch off the system's <em>Reduce Motion</em> — so Khaslana treats it
+              as a starting point rather than a verdict, and this only affects this page.
+            </p>
+            <div class="motion-pick" id="motionPick"></div>
+          </div>
+
+          <div class="card">
+            <h3 class="sect" style="margin-bottom:4px">This tab</h3>
+            <div class="entry-sub" style="margin-bottom:16px">
+              Khaslana never navigates — Dawn, Atlas, Setup are all one page switched by
+              JS, so a tab left open just keeps running whatever loaded it. This checks
+              every 90 seconds for a newer build and offers to reload; it never does it
+              on its own, in case you're mid-sentence in the Chronicle.
+            </div>
+            <div class="row">
+              <button class="btn" id="btnForceReload">Reload now</button>
+            </div>
+            <div class="entry-sub" style="margin-top:12px">Build loaded in this tab: <span id="buildStampSetup">—</span></div>
+          </div>
+
+          <div class="card">
+            <h3 class="sect" style="margin-bottom:4px">Your data</h3>
+            <div class="entry-sub" style="margin-bottom:16px">All of it lives in this browser. Export now and then.</div>
+            <div class="row">
+              <button class="btn" id="btnExport">Export backup</button>
+              <button class="btn" id="btnImport">Import</button>
+              <input type="file" id="fileImport" accept="application/json" hidden>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ═══ DOCK ═══ -->
+<aside id="dock">
+  <div class="dock-head">
+    <button class="dock-close" id="dockClose" title="Close">×</button>
+    <div class="dk-eyebrow" id="dkArea"></div>
+    <div class="dk-title" id="dkTitle"></div>
+    <div class="dk-sub" id="dkSub"></div>
+    <div class="dock-tabs">
+      <button class="dtab" data-dtab="read">Chapter</button>
+      <button class="dtab" data-dtab="info">Details</button>
+      <span class="spacer"></span>
+      <div class="zoomer" data-zoom-for="dock">
+        <button data-zoom="-1" title="Smaller (−)">−</button>
+        <button class="z-val" data-zoom="0" title="Back to 100% (0)">100%</button>
+        <button data-zoom="1" title="Bigger (+)">+</button>
+      </div>
+      <button class="dk-icon" id="dockWide" title="Read it full width">⤢</button>
+      <a class="dk-icon" id="dockTab" target="_blank" rel="noopener" title="Open in a new tab">↗</a>
+    </div>
+  </div>
+  <div class="dock-read" id="dockRead"></div>
+  <div class="dock-body" id="dockBody"></div>
+</aside>
+
+<!-- ═══ READER ═══ -->
+<div id="reader">
+  <div class="rd-bar">
+    <button class="rd-back" id="rdBack" title="Back to the Atlas (Esc)">←</button>
+    <div class="rd-id">
+      <div class="rd-area" id="rdArea"></div>
+      <div class="rd-title" id="rdTitle"></div>
+    </div>
+    <div class="rd-acts">
+      <div class="zoomer" data-zoom-for="reader">
+        <button data-zoom="-1" title="Smaller (−)">−</button>
+        <button class="z-val" data-zoom="0" title="Back to 100% (0)">100%</button>
+        <button data-zoom="1" title="Bigger (+)">+</button>
+      </div>
+      <button class="btn sm" id="rdState"></button>
+      <a class="btn sm" id="rdTab" target="_blank">New tab ↗</a>
+    </div>
+  </div>
+  <iframe id="rdFrame" title="Chapter"></iframe>
+</div>
+
+<!-- ═══ THE GATE ═══ -->
+<div id="gate">
+  <div class="gate-panel bracketed">
+    <div class="gate-field">
+      <span class="gate-icon">⌕</span>
+      <input type="text" id="gateInput" placeholder="a room, a chapter, a block to start, a thing to do…"
+             autocomplete="off" spellcheck="false">
+      <kbd>esc</kbd>
+    </div>
+    <div class="gate-list" id="gateList"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="data/sky.js"></script>
+<script src="data/codex-index.js"></script>
+<script src="data/prompts.js"></script>
+<script src="data/voices.js"></script>
+<script src="data/lore.js"></script>
+<script src="assets/extract.js"></script>
+<script src="assets/canvas.js"></script>
+<script src="assets/emblem.js"></script>
+<script src="assets/graph.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

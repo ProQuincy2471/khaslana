@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "khaslana",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["scripts/serve.py", "8124"],
+      "port": 8124
+    }
+  ]
+}
