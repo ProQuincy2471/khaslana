@@ -17,6 +17,79 @@
 </head>
 <body>
 
+<!-- ═══ LOCK — a client-side gate, not real access control. Everything
+     below is delivered to any browser that requests this URL; this only
+     keeps the app from being usable (and visible) until the right
+     password is typed, so it stops someone stumbling onto the link, not
+     someone who opens dev tools. Cloudflare Access, when that's set up,
+     is the actual door — this is the one that exists in the meantime. ═══ -->
+<div id="lockScreen">
+  <div class="lock-card">
+    <div class="lock-mark">◆</div>
+    <h1>Khaslana</h1>
+    <p>Locked. Enter the password.</p>
+    <form id="lockForm" autocomplete="off">
+      <input id="lockInput" type="password" autocomplete="current-password" placeholder="Password" autofocus>
+      <button type="submit">Enter</button>
+    </form>
+    <p class="lock-err" id="lockErr" hidden>Wrong password.</p>
+  </div>
+</div>
+<script>
+/* Runs before anything else paints — the lock has to exist ahead of the
+   rest of the page, not as an afterthought bolted on top of it. Only a
+   SHA-256 hash of the password lives in this file, never the password
+   itself; Web Crypto does the hashing so nothing about the comparison
+   needs a library. A device that's already unlocked skips straight past
+   this — localStorage remembers it, sessionStorage would ask again every
+   time the tab closes, which is worse than the lock is trying to be. */
+(function () {
+  const HASH = '213c8108e7f0251c328c093b0c03e8cf0ed91cd8204c59971c17f5e9e15f476c';
+  const KEY = 'khaslana.unlocked.v1';
+  const root = document.documentElement;
+
+  function unlock() {
+    document.getElementById('lockScreen').remove();
+    root.classList.remove('locked');
+  }
+
+  if (localStorage.getItem(KEY) === '1') {
+    /* The script tag runs right after #lockScreen in source order, so
+       it's already in the DOM by now — safe to remove synchronously
+       instead of waiting for DOMContentLoaded, which would otherwise
+       leave the fixed, full-viewport lock screen sitting on top of an
+       already-unlocked app for one visible frame on every load. */
+    document.getElementById('lockScreen')?.remove();
+  } else {
+    root.classList.add('locked');
+  }
+
+  async function sha256(text) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('lockForm');
+    const input = document.getElementById('lockInput');
+    const err = document.getElementById('lockErr');
+    if (!form) return;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const digest = await sha256(input.value);
+      if (digest === HASH) {
+        localStorage.setItem(KEY, '1');
+        unlock();
+      } else {
+        err.hidden = false;
+        input.value = '';
+        input.focus();
+      }
+    });
+  });
+})();
+</script>
+
 <canvas id="sky"></canvas>
 
 <div class="shell">
@@ -484,6 +557,18 @@
               <button class="btn" id="btnForceReload">Reload now</button>
             </div>
             <div class="entry-sub" style="margin-top:12px">Build loaded in this tab: <span id="buildStampSetup">—</span></div>
+          </div>
+
+          <div class="card">
+            <h3 class="sect" style="margin-bottom:4px">Lock</h3>
+            <div class="entry-sub" style="margin-bottom:16px">
+              This device stays unlocked once you've entered the password here — it isn't
+              asked again on this browser. Lock it again if this device stops being only
+              yours to use.
+            </div>
+            <div class="row">
+              <button class="btn" id="btnRelock">Lock this device</button>
+            </div>
           </div>
 
           <div class="card">

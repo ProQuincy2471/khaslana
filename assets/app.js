@@ -2547,6 +2547,11 @@ document.addEventListener('click', (ev) => {
 
   if (t.id === 'staleReload' || t.id === 'btnForceReload') return hardReload();
   if (t.id === 'staleDismiss') { $('#staleBanner')?.remove(); return; }
+  if (t.id === 'btnRelock') {
+    localStorage.removeItem('khaslana.unlocked.v1');
+    location.reload();
+    return;
+  }
 
   /* Dock tabs */
   const dtab = t.closest('button.dtab[data-dtab]');
