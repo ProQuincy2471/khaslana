@@ -1039,32 +1039,36 @@ One writer, two devices, last-write-wins: there's no multi-user conflict to reso
 timestamp is the whole merge strategy. `functions/api/state.js` is a Cloudflare Pages Function
 backed by one KV key — no database, no user table, one JSON document.
 
-None of that needed an account to write. Deploying it does, and that part is yours to click
-through — an API token or OAuth grant isn't something to hand to an assistant:
+None of that needed an account to write. Deploying it does, and logging into an account is the
+one thing here that's structurally not automatable by an assistant — not a policy choice, a
+real one: completing OAuth or typing a password requires a human in that specific loop. So the
+whole deploy collapsed to as few of those moments as could actually be removed:
 
-1. **Cloudflare account** (free) at [dash.cloudflare.com](https://dash.cloudflare.com) if you
-   don't have one.
-2. **Connect the repo.** Cloudflare dashboard → Workers & Pages → Create → Pages → Connect to
-   Git → pick `ENARMINDMK/khaslana`. Build settings: no build command, output directory `/`.
-   This is what makes "push to GitHub" mean "the deployed version updates" — every push to
-   `main` redeploys automatically from here on, which is the whole point of asking me to
-   commit and push when a change is done rather than deploying by hand each time.
-3. **Create the KV store**: `wrangler` lives in `node_modules` now (`npm install` once pulls
-   it in), so it's `npx wrangler login` (opens your own Cloudflare login in the browser), then
-   `npx wrangler kv namespace create khaslana-state`. It prints an id — paste that over
-   `REPLACE_WITH_YOUR_KV_NAMESPACE_ID` in `wrangler.toml`, commit, push.
-4. **Bind it to Pages**: dashboard → your Pages project → Settings → Functions → KV namespace
-   bindings → variable name `KHASLANA_KV` → the namespace from step 3.
-5. **Set `ALLOWED_EMAIL`**: same Settings page → Environment variables → add `ALLOWED_EMAIL` =
-   your email. This is the belt-and-suspenders check inside `functions/api/state.js` — it
-   works even if Access below is ever misconfigured.
-6. **Cloudflare Access — the part that makes it actually private.** Zero Trust dashboard →
-   Access → Applications → Add an application → Self-hosted → point it at your Pages domain →
-   add a policy that allows exactly one identity, your email → login method "One-time PIN"
-   (Cloudflare emails you a code, no separate password to manage). This is the door from the
-   screenshot: nobody reaches the app at all — not the login screen, not a 404, nothing —
-   without that email passing the policy first.
-7. **Add to Home Screen.** iPhone: Safari → Share → Add to Home Screen. Mac: Chrome/Edge show
+1. **`npx wrangler login`** — opens Cloudflare's own login in your browser (an account gets
+   created right there if you don't have one yet). This is the one step nothing else here can
+   substitute for.
+2. **`npm run cloudflare:setup`** (or `bash scripts/cloudflare-setup.sh` directly) — once step 1
+   actually succeeded (`npx wrangler whoami` prints your account, not "not authenticated"), this
+   one script does everything else that's CLI-shaped: creates the Pages project, creates the KV
+   namespace, writes its id into `wrangler.toml`, sets `ALLOWED_EMAIL` as a Pages secret, and
+   deploys once by hand so something is live immediately. It prints exactly what's left when
+   it's done.
+3. **Cloudflare Access — the part that makes it actually private, and the other thing that
+   has to be a human clicking.** Zero Trust dashboard → Access → Applications → Add an
+   application → Self-hosted → the `*.pages.dev` domain the setup script printed → a policy
+   allowing exactly one identity, your email → login method "One-time PIN" (Cloudflare emails a
+   code, no separate password to manage). This is the door from the screenshot: nobody reaches
+   the app at all — not the login screen, not a 404, nothing — without that email passing the
+   policy first. Worth clicking through deliberately rather than having an assistant guess at
+   who should be allowed in.
+4. **Auto-deploy on push, optional but what "commit and push means it's live" actually needs**:
+   `.github/workflows/deploy.yml` already runs `wrangler pages deploy` on every push to `main` —
+   it just needs two secrets in the repo, once: a Cloudflare API token (dashboard → My Profile →
+   API Tokens → Create Token → "Edit Cloudflare Workers" template) and the account id (`npx
+   wrangler whoami`), added via `gh secret set CLOUDFLARE_API_TOKEN` and `gh secret set
+   CLOUDFLARE_ACCOUNT_ID`. Until those exist, step 2's manual deploy is what's live; add them
+   whenever, nothing breaks either way.
+5. **Add to Home Screen.** iPhone: Safari → Share → Add to Home Screen. Mac: Chrome/Edge show
    an install icon in the address bar once the manifest is served; Safari uses File → Add to
    Dock. Either way it opens like a real app, full-screen, its own icon — same document,
    whichever device you touched last.

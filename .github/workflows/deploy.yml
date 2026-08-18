@@ -1,0 +1,35 @@
+name: Deploy to Cloudflare Pages
+
+# Every push to main redeploys — this is what actually makes "commit and
+# push when a change is done" mean "the phone and the Mac see it," rather
+# than relying on Cloudflare's own dashboard Git integration (which needs
+# a separate OAuth grant from Cloudflare into GitHub, on top of the
+# Cloudflare login already required elsewhere). GitHub Actions already
+# has this repo's trust; this only asks it to also hold two Cloudflare
+# secrets, set once in the repo's own settings — never typed anywhere by
+# an assistant, never visible in this file.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - name: Deploy
+        run: npx wrangler pages deploy . --project-name=khaslana --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
