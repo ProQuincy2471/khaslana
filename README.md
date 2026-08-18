@@ -1003,18 +1003,33 @@ the same hairline SVG geometry can honestly disagree about whether it changed. A
 that either matches the one just written into the file or doesn't settles it in one
 glance, no eyeballing required.
 
-## Deploying — GitHub end to end, nothing else
+## Deploying — GitHub for the code and the data, Cloudflare for the door
 
 Khaslana was local-only for most of this project: `abrir.command`, a Python server, whatever
 was in `localStorage` on whatever machine you opened it from. That stops being enough the
 moment a phone is involved — there's no `abrir.command` on iOS, and `localStorage` on a phone
 and `localStorage` on a Mac are two entirely separate drawers that never talk to each other.
 
-A Cloudflare-based version of this section existed briefly — Pages, Workers KV, Access — and
-got torn back out. Not because it was wrong, but because it needed a second account and a
-second login on top of the GitHub one already in use, and that login kept failing to complete.
-Everything here now runs on GitHub alone: the same account already pushing this code hosts it
-and holds its synced state, so there's exactly one login in the whole picture, not two.
+This went through three shapes before landing here, worth knowing because each one failed for
+a real reason, not a fixable bug:
+
+1. **Cloudflare Pages + Workers KV + Access**, first attempt. Right idea, but `wrangler login`
+   kept failing to complete across many tries — real infrastructure friction, not code — so it
+   got torn out rather than left half-built.
+2. **GitHub Pages + GitHub's own Contents API for sync**, second attempt — one account,
+   nothing else to log into. This genuinely works and is still how sync happens. But GitHub
+   Pages has no concept of a login gate: everything deployed there is delivered to whoever asks
+   for the URL, full stop. The lock screen (below) only hides the app *visually* — dev tools
+   still show all of it sitting in the page source. That was an accepted tradeoff for a while.
+3. **Where it actually landed**: GitHub still holds the code and the synced state, but the
+   *site itself* is served from **Cloudflare Pages**, gated by **Cloudflare Access** — a
+   `khaslana.pages.dev` request that isn't Jordan never reaches the app at all, not the lock
+   screen, not a single byte of it. `wrangler login` finally completed once the actual account
+   was reachable, and Access only needed one dashboard click to enable Zero Trust plus one form
+   (self-hosted app → the Pages domain → a policy allowing exactly one email → One-time PIN) —
+   the parts that couldn't be scripted were two clicks, not a rebuild. GitHub Pages was
+   switched off once this was live, so there's exactly one deployed copy, not an unlocked one
+   sitting next to a locked one.
 
 **The codex stopped being a symlink.** It pointed at `~/Desktop/All 101 ENARM` — real on this
 Mac, meaningless anywhere else. The 83 chapters are copied into `codex/` for real now (29MB,
@@ -1032,13 +1047,15 @@ language as everything else (`scripts/icon-gen.html` regenerates them if the mar
 changes). The service worker caches the shell and the chapters cache-first — instant open,
 quietly refreshing behind you.
 
-**There's a lock screen.** Not real access control — everything in this repo is delivered to
-any browser that requests the URL, lock screen included, so anyone who opens dev tools can
-read the password's hash or flip the `localStorage` flag directly. What it actually does: stop
-someone from landing on the app by accident and seeing anything at all. `index.html`'s inline
-script runs before the rest of the page paints, checks a `sha256` of the password against what
-was typed (Web Crypto, no library, the plaintext password is never in the file), and remembers
-the unlock per device. Setup → Lock re-locks a device on demand.
+**Two doors now, one real, one kept anyway.** Cloudflare Access is the real one — it runs
+*before* Cloudflare Pages serves a single byte, so a request that isn't from the allowed email
+gets Cloudflare's own login page and nothing else; there's no dev-tools trick that shows you
+the app without passing it, because the app was never sent. The client-side lock screen in
+`index.html` still exists behind that — `sha256` of a password checked with Web Crypto, the
+plaintext never in the file, unlock remembered per device via `localStorage` — and is honestly
+redundant now that Access is in front of it. Left in on purpose: it costs nothing, and it's the
+fallback if Access is ever off (a plan change, a policy edit) — the app still isn't wide open
+the moment that outer door is down. Setup → Lock re-locks a device against the inner one.
 
 **State syncs through the repo itself.** No separate backend — `syncPush()`/`syncPull()` read
 and write `data/state.json` directly through GitHub's own Contents API, authenticated with a
@@ -1050,26 +1067,34 @@ doesn't fire on every keystroke the way the local save does — it's throttled t
 plus once when a tab is hidden or closed, so nothing's lost without turning every checkbox tick
 into its own line in the repo's history.
 
-**Live at [proquincy2471.github.io/khaslana](https://proquincy2471.github.io/khaslana/).**
-GitHub Pages doesn't serve a private repo on the free plan — Settings → Pages simply refuses,
-`422: Your current plan does not support GitHub Pages for this repository` — so the repo is
-public. `robots.txt` disallows everything and `<meta name="robots" content="noindex, nofollow">`
-is in `index.html`, so it won't turn up in a search, but "not indexed" isn't "not public": the
-full source and commit history are visible to anyone who goes looking on GitHub, same as any
-public repo. The lock screen is what actually keeps the *app* from being usable, not the repo's
-visibility.
+**Live at [khaslana.pages.dev](https://khaslana.pages.dev/)** — behind Access. The repo itself
+is public (GitHub Pages on the free plan won't serve a private one at all, `422: Your current
+plan does not support GitHub Pages for this repository`, which is what pushed this toward
+Cloudflare in the first place), so the source and commit history are visible to anyone who
+goes looking on GitHub — but the *running app* is not: Access sits in front of the Pages
+domain, and nothing behind it is reachable without clearing that first.
 
 Getting a new device onto it:
 
-1. **Make a sync token**: GitHub → Settings → Developer settings → Personal access tokens →
+1. **Sign in through Access** — the pages.dev URL asks for the allowed email and emails a
+   one-time code. No password to remember for this part, just the inbox.
+2. **Make a sync token**: GitHub → Settings → Developer settings → Personal access tokens →
    Fine-grained → scope it to *just this repo* → permission **Contents: Read and write**, nothing
    broader. Paste it into Setup → Sync, along with the repo as `owner/repo`. This token is never
    committed — it lives in that device's `localStorage` only, sent to nowhere but
    `api.github.com`. Do this once per device you want synced.
-2. **Add to Home Screen.** iPhone: Safari → Share → Add to Home Screen. Mac: Chrome/Edge show
+3. **Add to Home Screen.** iPhone: Safari → Share → Add to Home Screen. Mac: Chrome/Edge show
    an install icon in the address bar once the manifest is served; Safari uses File → Add to
    Dock. Either way it opens like a real app, full-screen, its own icon — same document,
    whichever device you touched last, synced through the repo within about a minute.
+
+**Redeploying**: pushing to `main` updates the *code* on GitHub, but Cloudflare Pages isn't
+watching this repo the way GitHub Pages was — there's no Git integration wired up, so a push
+alone doesn't reach `khaslana.pages.dev` yet. Until that's connected (Cloudflare dashboard →
+your Pages project → Settings → Builds → connect to `ProQuincy2471/khaslana`, or set the two
+`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` secrets `.github/workflows/deploy.yml` is
+already written for), a change isn't live until `npx wrangler pages deploy .` actually runs —
+which is the last step after any edit session here, same as the `git push` already is.
 
 ## Adding your own material
 
