@@ -1050,20 +1050,23 @@ doesn't fire on every keystroke the way the local save does — it's throttled t
 plus once when a tab is hidden or closed, so nothing's lost without turning every checkbox tick
 into its own line in the repo's history.
 
-Getting it live:
+**Live at [proquincy2471.github.io/khaslana](https://proquincy2471.github.io/khaslana/).**
+GitHub Pages doesn't serve a private repo on the free plan — Settings → Pages simply refuses,
+`422: Your current plan does not support GitHub Pages for this repository` — so the repo is
+public. `robots.txt` disallows everything and `<meta name="robots" content="noindex, nofollow">`
+is in `index.html`, so it won't turn up in a search, but "not indexed" isn't "not public": the
+full source and commit history are visible to anyone who goes looking on GitHub, same as any
+public repo. The lock screen is what actually keeps the *app* from being usable, not the repo's
+visibility.
 
-1. **A GitHub account** — already have one if you're reading this from the repo. Fresh chapters,
-   backups, everything else already assumed this.
-2. **Turn on Pages**: repo → Settings → Pages → Source: **Deploy from a branch** → `main`, `/`
-   (root). GitHub builds a URL like `https://<you>.github.io/<repo>/` — not listed or indexed
-   anywhere, but reachable by anyone who has it, which is exactly what the lock screen above is
-   for.
-3. **Make a sync token**: GitHub → Settings → Developer settings → Personal access tokens →
+Getting a new device onto it:
+
+1. **Make a sync token**: GitHub → Settings → Developer settings → Personal access tokens →
    Fine-grained → scope it to *just this repo* → permission **Contents: Read and write**, nothing
-   broader. Paste it into Setup → Sync on each device, along with the repo as `owner/repo`. This
-   token is never committed — it lives in that device's `localStorage` only, sent to nowhere but
-   `api.github.com`.
-4. **Add to Home Screen.** iPhone: Safari → Share → Add to Home Screen. Mac: Chrome/Edge show
+   broader. Paste it into Setup → Sync, along with the repo as `owner/repo`. This token is never
+   committed — it lives in that device's `localStorage` only, sent to nowhere but
+   `api.github.com`. Do this once per device you want synced.
+2. **Add to Home Screen.** iPhone: Safari → Share → Add to Home Screen. Mac: Chrome/Edge show
    an install icon in the address bar once the manifest is served; Safari uses File → Add to
    Dock. Either way it opens like a real app, full-screen, its own icon — same document,
    whichever device you touched last, synced through the repo within about a minute.
