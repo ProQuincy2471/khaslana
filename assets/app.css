@@ -3064,16 +3064,48 @@ html[data-aspect="alatus"]   { --ember: #7ec9a4; --gold: #c9e4d2; }
 #view-wellbeing { animation: none; }
 
 @media (max-width: 900px) {
-  /* Debajo: la barra de pestañas de Khaslana es fija y se come el pie. */
-  .uxf {
-    margin: -26px -20px -100px;
-    height: calc(100vh - 46px - env(safe-area-inset-bottom, 0px));
-    height: calc(100dvh - 46px - env(safe-area-inset-bottom, 0px));
+  /* Files and Wellbeing were still frozen for touch scroll after every fix
+     aimed at the page underneath them (the html.*-open locks below) — the
+     one structural thing they still had that the reader (#reader, which
+     has always scrolled fine by touch) doesn't: they're toggled with
+     .view's display: none → block. #reader is never display: none, only
+     ever opacity: 0 with pointer-events: none — it stays mounted and
+     rendered from first paint, just invisible. An iframe that's built
+     while its container is display: none, then revealed later by
+     switching display to block, is a known way for a WebKit page to end
+     up with a same-origin iframe whose own scrolling/compositing layer
+     never got established — taps still land (hit-testing doesn't care),
+     a touch drag doesn't (that needs the layer). Giving Files and
+     Wellbeing the exact same always-mounted, opacity-toggled shape as
+     #reader, instead of continuing to patch what's built on top of the
+     other shape, whether or not this specific theory is the whole
+     picture — matching the one embed in this app that has never had this
+     problem, structurally, is the most redundant-but-safe thing available
+     to try. */
+  #view-files, #view-wellbeing {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 55;   /* under .rail's 70 (the bottom tab bar), over everything else */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s var(--ease);
+    animation: none;
+    background: #0b0c0e;
+    padding-bottom: calc(46px + env(safe-area-inset-bottom, 0px));
   }
-  .wb {
-    margin: -26px -20px -100px;
-    height: calc(100vh - 46px - env(safe-area-inset-bottom, 0px));
-    height: calc(100dvh - 46px - env(safe-area-inset-bottom, 0px));
+  #view-files.on, #view-wellbeing.on { opacity: 1; pointer-events: auto; }
+
+  /* Now just filling whatever box the always-mounted section above gives
+     it — the section handles viewport coverage and the nav's reserved
+     space, so the margin/height arithmetic that used to live here (for
+     breaking .uxf/.wb out of .main's padding while still inside normal
+     flow) no longer applies; position: fixed took it out of flow instead. */
+  .uxf, .wb {
+    position: static;
+    margin: 0;
+    width: 100%;
+    height: 100%;
   }
 
   /* The dock is `position: fixed`, but Atlas underneath it was never told

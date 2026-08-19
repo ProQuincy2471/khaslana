@@ -2573,6 +2573,26 @@ function runGate(i) {
 
 let filesMounted = false;
 
+/* Belt-and-suspenders on top of the display:none→block fix above: same
+   origin means this can reach into the iframe's own document and force
+   momentum scrolling directly on whatever's tall in there, instead of
+   hoping the iframe's own stylesheet already has it. Modern iOS doesn't
+   strictly need `-webkit-overflow-scrolling: touch` anymore — Safari's
+   had native momentum scroll by default for years — but it's a no-op
+   where it isn't needed and costs nothing to also try. */
+function forceTouchScroll(frame) {
+  try {
+    const doc = frame.contentDocument;
+    if (!doc) return;
+    const style = doc.createElement('style');
+    style.textContent = `
+      html, body { -webkit-overflow-scrolling: touch !important; overscroll-behavior: contain; }
+      * { -webkit-overflow-scrolling: touch !important; }
+    `;
+    doc.head?.appendChild(style);
+  } catch { /* cross-origin or not ready yet — nothing lost, the CSS lock still stands on its own */ }
+}
+
 function renderFiles() {
   const frame = $('#uxfFrame');
   const load  = $('#uxfLoad');
@@ -2590,6 +2610,7 @@ function renderFiles() {
     clearTimeout(t);
     if (load) load.hidden = true;
     if (fail) fail.hidden = true;
+    forceTouchScroll(frame);
   }, { once: true });
 
   frame.addEventListener('error', () => {
@@ -2628,6 +2649,7 @@ function renderWellbeing() {
     clearTimeout(t);
     if (load) load.hidden = true;
     if (fail) fail.hidden = true;
+    forceTouchScroll(frame);
   }, { once: true });
 
   frame.addEventListener('error', () => {
