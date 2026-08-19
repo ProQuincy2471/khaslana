@@ -1434,7 +1434,7 @@ html.docked #dock { transform: none; visibility: visible; }
 html.docked .main { padding-right: calc(54px + var(--dock-w)); }
 
 .dock-head {
-  padding: 22px 24px 0;
+  padding: calc(22px + env(safe-area-inset-top, 0px)) 24px 0;
   border-bottom: 1px solid var(--line);
   position: relative;
 }
@@ -1544,7 +1544,7 @@ html[data-dpane="read"] .dock-body { display: none; }
   all: unset;
   cursor: pointer;
   position: absolute;
-  top: 20px; right: 20px;
+  top: calc(20px + env(safe-area-inset-top, 0px)); right: 20px;
   width: 24px; height: 24px;
   display: grid;
   place-items: center;
@@ -1555,7 +1555,15 @@ html[data-dpane="read"] .dock-body { display: none; }
 }
 .dock-close:hover { color: var(--paper); background: rgba(244, 239, 230, 0.07); }
 
-.dock-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px 28px; }
+.dock-body {
+  flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px 28px;
+  -webkit-overflow-scrolling: touch;
+  /* Without this, a drag that runs past the top or bottom of the list
+     hands the rest of the gesture to whatever's behind the panel — on a
+     touch device that's exactly what read as "the panel won't scroll,
+     Atlas does instead." */
+  overscroll-behavior: contain;
+}
 .dock-sec {
   font-family: var(--mono);
   font-size: 8px;
@@ -2098,6 +2106,12 @@ html.reading { overflow: hidden; }
   align-items: center;
   gap: 16px;
   padding: 12px 20px;
+  /* #reader is fixed at inset:0 with nothing above it, so with no top
+     inset this bar — and the only way back, .rd-back — sits flush under
+     a phone's notch or Dynamic Island. Reachable on a device with no cutout,
+     unreachable on almost every current iPhone: "no hay botón para
+     regresar" was this button existing exactly where a finger can't land. */
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
   border-bottom: 1px solid var(--line);
   background: rgba(5, 6, 13, 0.96);
   backdrop-filter: blur(18px);
@@ -2146,7 +2160,7 @@ html.reading { overflow: hidden; }
 }
 
 @media (max-width: 700px) {
-  .rd-bar { padding: 10px 12px; gap: 10px; }
+  .rd-bar { padding: 10px 12px; padding-top: calc(10px + env(safe-area-inset-top, 0px)); gap: 10px; }
   .rd-title { font-size: 16px; }
   .rd-acts .btn { padding: 5px 8px; }
 }
@@ -2970,6 +2984,14 @@ html[data-aspect="alatus"]   { --ember: #7ec9a4; --gold: #c9e4d2; }
     height: calc(100vh - 46px - env(safe-area-inset-bottom, 0px));
     height: calc(100dvh - 46px - env(safe-area-inset-bottom, 0px));
   }
+
+  /* The dock is `position: fixed`, but Atlas underneath it was never told
+     to stop scrolling — visually the dock covers the page, but a touch
+     drag anywhere still has a normally-scrollable body under it to grab.
+     iOS routes the gesture to whichever scrollable ancestor it picks,
+     and picked the page: the dock "wouldn't scroll," Atlas did instead,
+     and the dock just sat there, open, while the page moved behind it. */
+  html.docked { overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
