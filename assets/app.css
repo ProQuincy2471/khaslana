@@ -1558,12 +1558,14 @@ html[data-dpane="read"] .dock-body { display: none; }
 .dock-body {
   flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px 28px;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   /* Without this, a drag that runs past the top or bottom of the list
      hands the rest of the gesture to whatever's behind the panel — on a
      touch device that's exactly what read as "the panel won't scroll,
      Atlas does instead." */
   overscroll-behavior: contain;
 }
+.dock-read { touch-action: pan-y; }
 .dock-sec {
   font-family: var(--mono);
   font-size: 8px;
@@ -2990,8 +2992,12 @@ html[data-aspect="alatus"]   { --ember: #7ec9a4; --gold: #c9e4d2; }
      drag anywhere still has a normally-scrollable body under it to grab.
      iOS routes the gesture to whichever scrollable ancestor it picks,
      and picked the page: the dock "wouldn't scroll," Atlas did instead,
-     and the dock just sat there, open, while the page moved behind it. */
-  html.docked { overflow: hidden; }
+     and the dock just sat there, open, while the page moved behind it.
+     Both html and body get it — iOS Safari has historically treated
+     <body>, not <html>, as the element actually carrying page scroll, so
+     locking only one of them is exactly the kind of fix that works in a
+     desktop browser's emulator and does nothing on the phone it's for. */
+  html.docked, html.docked body { overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {

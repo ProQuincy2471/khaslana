@@ -985,8 +985,33 @@ const daysSince = (id) => {
 };
 /* Los capítulos se sirven por el symlink codex/ — una ruta relativa que
    resuelve igual abriendo el index con file:// que sirviéndolo por http.
-   El file:// absoluto queda de respaldo por si falta el enlace. */
-const chapterURL = (e) => e.rel || ('file://' + e.path.split('/').map(encodeURIComponent).join('/'));
+   El file:// absoluto queda de respaldo por si falta el enlace.
+
+   Every accented filename here went through macOS's own APFS at some
+   point, which stores "á" as "a" + a separate combining accent (NFD) —
+   the index was generated from a directory listing in that form, for
+   every chapter that has one. The files themselves, once through git and
+   onto the deployed host, ended up the ordinary precomposed way (NFC).
+   Same character, different bytes: a filesystem doing a byte-exact
+   lookup for the NFD form 404s on the NFC file that's actually there.
+   Twenty of the eighty-three chapters have an accent in the title, so
+   this silently 404'd a quarter of the library — and because the host
+   answers a missing path with Khaslana's own shell instead of a real
+   404, what loaded in the chapter's place was Khaslana itself, nested
+   inside its own reader. Normalizing to NFC here, once, fixes every
+   affected chapter without needing to touch the generated index. */
+const chapterURL = (e) => {
+  if (e.rel) {
+    const slash = e.rel.indexOf('/');
+    if (slash < 0) return e.rel;
+    try {
+      const dir  = e.rel.slice(0, slash);
+      const name = decodeURIComponent(e.rel.slice(slash + 1)).normalize('NFC');
+      return dir + '/' + encodeURIComponent(name);
+    } catch { return e.rel; }
+  }
+  return 'file://' + e.path.split('/').map(s => encodeURIComponent(s.normalize('NFC'))).join('/');
+};
 
 function todaysTitan() {
   const es = CODEX.entries;
@@ -1803,7 +1828,6 @@ function openDock(id, pane) {
   $('#dkTitle').textContent = e.title;
   $('#dkSub').textContent = e.subtitle || '';
   $('#dock').style.setProperty('--pc', c);
-  $('#dockTab').href = chapterURL(e);
 
   /* Only rebuild the iframe when the chapter actually changes — re-setting
      src on a re-render would throw away your scroll position every time you
@@ -1814,6 +1838,7 @@ function openDock(id, pane) {
   } else if (!same || !$('#dockRead').firstChild) {
     $('#dockRead').innerHTML =
       `<iframe src="${esc(chapterURL(e))}" title="${esc(e.title)}" loading="lazy"></iframe>`;
+    bindIframeTouchScroll($('.dock-read'), () => $('#dockRead iframe'));
   }
   $$('.dtab').forEach(b => b.classList.toggle('on', b.dataset.dtab === dockPane));
   $('.dock-tabs').classList.toggle('no-read', !CAN_READ_INLINE);
@@ -1864,7 +1889,6 @@ function openDock(id, pane) {
 
       <div class="dock-acts">
         <button class="btn primary" data-read="${e.id}">Read it full width</button>
-        <a class="btn" href="${chapterURL(e)}" target="_blank">Open in a new tab ↗</a>
         ${e.cases ? `<button class="btn" data-exam="${esc(e.title)}" data-n="${e.cases}">Log a trial on this</button>` : ''}
       </div>
     </div>`;
@@ -2560,30 +2584,35 @@ function renderFiles() {
   }, { once: true });
 
   frame.src = './ultraxfiles/index.html?v=' + encodeURIComponent(stamp);
-  frame.addEventListener('load', initUxfTouchScroll, { once: true });
+  frame.addEventListener('load', () => bindIframeTouchScroll($('.uxf'), () => $('#uxfFrame')), { once: true });
 }
 
 /* iOS has a long-standing WebKit bug where a touch drag never reaches the
    scrollable content inside a same-origin iframe — taps land fine, but a
    finger dragged across it moves nothing. It shows up in plain Safari and
-   is worse once the app is installed (standalone mode). UltraXFiles scrolls
-   its own `<main class="principal">`, not the iframe's body, so even a
-   working native drag on the outer page wouldn't reach it.
-   Since the iframe is same-origin, its DOM is reachable: this drives the
-   scroll container under the finger by hand instead of waiting on a
+   is worse once the app is installed (standalone mode). Two places in
+   Khaslana load same-origin content into an iframe this way: UltraXFiles
+   in Files, and a chapter's own HTML in the Atlas dock — both scroll an
+   inner element (UltraXFiles' `<main class="principal">`, a chapter's own
+   body), not something a working native drag on the outer page would
+   reach anyway.
+   Since same-origin means the iframe's DOM is reachable, this drives
+   whatever's scrollable under the finger by hand instead of waiting on a
    gesture WebKit never delivers. Gated to iOS so it never runs where the
-   native drag already works (desktop, Android) and doesn't double it up. */
+   native drag already works (desktop, Android) and doesn't double it up.
+   `getFrame` is a function, not the element itself, because the dock's
+   iframe gets replaced wholesale on every new chapter (openDock() only
+   rebuilds it when the chapter actually changes) — binding once to the
+   wrapper and re-resolving the live iframe per touch means a chapter
+   switch never needs this rebound. */
 const IS_IOS = /iP(hone|ad|od)/.test(navigator.platform) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-function initUxfTouchScroll() {
-  if (!IS_IOS) return;
-  const wrap  = $('.uxf');
-  const frame = $('#uxfFrame');
-  if (!wrap || !frame || wrap.dataset.touchScrollBound) return;
+function bindIframeTouchScroll(wrap, getFrame) {
+  if (!IS_IOS || !wrap || wrap.dataset.touchScrollBound) return;
   wrap.dataset.touchScrollBound = '1';
 
-  const scrollableAt = (x, y) => {
+  const scrollableAt = (frame, x, y) => {
     let doc;
     try { doc = frame.contentDocument; } catch { return null; }
     if (!doc) return null;
@@ -2599,9 +2628,11 @@ function initUxfTouchScroll() {
   let target = null, lastY = 0;
 
   wrap.addEventListener('touchstart', (e) => {
+    const frame = getFrame();
+    if (!frame) { target = null; return; }
     const t = e.touches[0];
     const r = frame.getBoundingClientRect();
-    target = scrollableAt(t.clientX - r.left, t.clientY - r.top);
+    target = scrollableAt(frame, t.clientX - r.left, t.clientY - r.top);
     lastY = t.clientY;
   }, { passive: true });
 
