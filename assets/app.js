@@ -1854,7 +1854,6 @@ function openDock(id, pane) {
   } else if (!same || !$('#dockRead').firstChild) {
     $('#dockRead').innerHTML =
       `<iframe src="${esc(chapterURL(e))}" title="${esc(e.title)}" loading="lazy"></iframe>`;
-    bindIframeTouchScroll($('.dock-read'), () => $('#dockRead iframe'));
   }
   $$('.dtab').forEach(b => b.classList.toggle('on', b.dataset.dtab === dockPane));
   $('.dock-tabs').classList.toggle('no-read', !CAN_READ_INLINE);
@@ -2600,67 +2599,6 @@ function renderFiles() {
   }, { once: true });
 
   frame.src = './ultraxfiles/index.html?v=' + encodeURIComponent(stamp);
-  frame.addEventListener('load', () => bindIframeTouchScroll($('.uxf'), () => $('#uxfFrame')), { once: true });
-}
-
-/* iOS has a long-standing WebKit bug where a touch drag never reaches the
-   scrollable content inside a same-origin iframe — taps land fine, but a
-   finger dragged across it moves nothing. It shows up in plain Safari and
-   is worse once the app is installed (standalone mode). Two places in
-   Khaslana load same-origin content into an iframe this way: UltraXFiles
-   in Files, and a chapter's own HTML in the Atlas dock — both scroll an
-   inner element (UltraXFiles' `<main class="principal">`, a chapter's own
-   body), not something a working native drag on the outer page would
-   reach anyway.
-   Since same-origin means the iframe's DOM is reachable, this drives
-   whatever's scrollable under the finger by hand instead of waiting on a
-   gesture WebKit never delivers. Gated to iOS so it never runs where the
-   native drag already works (desktop, Android) and doesn't double it up.
-   `getFrame` is a function, not the element itself, because the dock's
-   iframe gets replaced wholesale on every new chapter (openDock() only
-   rebuilds it when the chapter actually changes) — binding once to the
-   wrapper and re-resolving the live iframe per touch means a chapter
-   switch never needs this rebound. */
-const IS_IOS = /iP(hone|ad|od)/.test(navigator.platform) ||
-  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-function bindIframeTouchScroll(wrap, getFrame) {
-  if (!IS_IOS || !wrap || wrap.dataset.touchScrollBound) return;
-  wrap.dataset.touchScrollBound = '1';
-
-  const scrollableAt = (frame, x, y) => {
-    let doc;
-    try { doc = frame.contentDocument; } catch { return null; }
-    if (!doc) return null;
-    let el = doc.elementFromPoint(x, y);
-    while (el && el !== doc.documentElement) {
-      const cs = doc.defaultView.getComputedStyle(el);
-      if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 2) return el;
-      el = el.parentElement;
-    }
-    return doc.scrollingElement || null;
-  };
-
-  let target = null, lastY = 0;
-
-  wrap.addEventListener('touchstart', (e) => {
-    const frame = getFrame();
-    if (!frame) { target = null; return; }
-    const t = e.touches[0];
-    const r = frame.getBoundingClientRect();
-    target = scrollableAt(frame, t.clientX - r.left, t.clientY - r.top);
-    lastY = t.clientY;
-  }, { passive: true });
-
-  wrap.addEventListener('touchmove', (e) => {
-    if (!target) return;
-    const t = e.touches[0];
-    target.scrollTop += lastY - t.clientY;
-    lastY = t.clientY;
-    e.preventDefault();
-  }, { passive: false });
-
-  wrap.addEventListener('touchend', () => { target = null; });
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -3277,7 +3215,15 @@ function spinRings() {
    reads it on its first paint. */
 document.documentElement.dataset.motion = motionLevel();
 spinRings();
-setInterval(spinRings, 200);
+/* A full turn takes 10–15 minutes — "you never catch it moving" was the
+   design goal, not a side effect. 200ms bought nothing toward that (each
+   tick moved the ring under a tenth of a degree) and cost a style write,
+   and the recalc it triggers, five times a second forever. 4s still
+   lands well over a hundred ticks across the slower ring's full turn —
+   plenty for something already meant to be imperceptible mid-motion —
+   for a fraction of the main-thread work, freeing it up for the moments
+   that actually need it, like a view transition. */
+setInterval(spinRings, 4000);
 document.addEventListener('visibilitychange', spinRings);
 
 applyAspect();

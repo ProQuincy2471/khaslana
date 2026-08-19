@@ -1565,15 +1565,14 @@ html[data-dpane="read"] .dock-body { display: none; }
      Atlas does instead." */
   overscroll-behavior: contain;
 }
-/* touch-action: pan-y here (an earlier attempt) told the browser this
-   element does its own native panning — but .dock-read has nothing to
-   pan, the scrollable content is inside the iframe's own document, which
-   the compositor can't see. The browser tried to honor that promise
-   anyway and came up with nothing to move, which is a good description
-   of "sigue fijo": not blocked, just handed to a gesture with nowhere to
-   go, ahead of the JS relay below that actually knows where to send it.
-   touch-action: none leaves that JS the only thing touch reaches. */
-.dock-read { touch-action: none; }
+/* touch-action here (first pan-y, then none, in two earlier attempts at
+   this exact bug) kept telling the browser something about how *this*
+   element handles touch — but .dock-read has no scrollable content of
+   its own; the scroll lives inside the iframe's own document, invisible
+   to the compositor either way. Every version of that override was
+   solving a problem this element doesn't have. Left at the default
+   (auto) so nothing here second-guesses how the iframe wants to handle
+   its own touch input. */
 .dock-sec {
   font-family: var(--mono);
   font-size: 8px;
@@ -2717,7 +2716,25 @@ html.gated .gate-panel { transform: none; }
   .sim-form { grid-template-columns: 1fr 1fr; }
   h2.title { font-size: 34px; }
   .prompt-q { font-size: 19px; }
+
+  /* Perf: backdrop-filter is one of the most GPU-expensive things a phone
+     browser does, and this app stacks several of them — the bottom nav,
+     the Atlas dock, the reader header — each recompositing every frame
+     they're on screen, worse still while a .view is also mid-transition
+     over them. That combination is what "se traba cuando cambio de
+     pestaña" is: real, measurable frame cost, not a perception thing.
+     Blur radius roughly halved; the visual softening is barely different,
+     the compositing cost is not. */
+  .rail, #dock, .rd-bar, .rail-glass:not(.empty) { backdrop-filter: blur(10px); }
+
+  /* Shorter, and skips the transform (the part a compositor has to do
+     the most work for) — still reads as a transition into the new room,
+     not a jump cut, at a fraction of the cost during the exact moment two
+     or three blurred layers are also repainting. */
+  .view { animation: riseMobile 0.18s var(--ease) both; }
 }
+
+@keyframes riseMobile { from { opacity: 0; } to { opacity: 1; } }
 
 /* ═══════════════════════════════════════════════════════════════════════
    MOTION
