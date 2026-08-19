@@ -1,19 +1,27 @@
 /* Khaslana — service worker.
 
-   Two rules, and everything else follows from them:
+   Three rules, and everything else follows from them:
 
    1. Anything under /api/ is never cached. That's the sync endpoint —
       caching it would mean two devices could each believe they have the
       latest Coreflame streak while actually looking at a stale copy.
-   2. Everything else (the shell, the codex chapters, the fonts) is
-      cache-first with a network update running behind it, so the app
-      opens instantly even on a bad connection, and quietly catches up
-      the next time it can reach the network.
+   2. The app shell itself — index.html, assets/*, data/*.js — is
+      network-first. This app is under active, frequent development, and
+      cache-first here means a real, correctness-affecting fix (like the
+      accented-chapter one — see chapterURL() in app.js) reads as "still
+      broken" on any device that opened the app since, right up until an
+      unrelated second reload happens to catch it. Network-first means
+      whatever's live is what loads, with the cached copy only as a
+      fallback when there's no connection.
+   3. Everything else (codex chapters, fonts) is cache-first with a
+      network update running behind it — instant open, quietly catching
+      up. Those don't change once written, so staleness there was never
+      the problem network-first solves for the shell.
 
    Bump CACHE_NAME when the shell itself changes shape (new files added
    to CORE, a renamed asset) — old caches are swept on activate. */
 
-const CACHE_NAME = 'khaslana-2026.08.19-b';
+const CACHE_NAME = 'khaslana-2026.08.19-c';
 const CORE = [
   './',
   './index.html',
@@ -89,6 +97,19 @@ const esDocumentoUXF = (url) =>
   url.pathname.includes('/ultraxfiles/') &&
   (url.pathname.endsWith('/ultraxfiles/') || url.pathname.endsWith('index.html'));
 
+/* The shell: the same files listed in CORE, minus UltraXFiles' own
+   index.html (that one's matched by esDocumentoUXF above and handled the
+   same way, network-first, but it needs its own fallback-to-itself logic
+   so it isn't folded in here). Anything in this set is code or data that
+   changes with a normal deploy — codex chapters and fonts aren't, and
+   stay cache-first below. */
+const APP_SHELL = new Set([
+  '/', '/index.html', '/manifest.json',
+  '/assets/app.css', '/assets/app.js', '/assets/canvas.js', '/assets/emblem.js',
+  '/assets/extract.js', '/assets/graph.js', '/assets/fonts.css',
+  '/data/codex-index.js', '/data/lore.js', '/data/prompts.js', '/data/sky.js', '/data/voices.js',
+]);
+
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
@@ -96,19 +117,19 @@ self.addEventListener('fetch', (e) => {
   /* Sync traffic: network only, never cached, never intercepted. */
   if (url.pathname.startsWith('/api/')) return;
 
-  if (esDocumentoUXF(url)) {
+  if (esDocumentoUXF(url) || APP_SHELL.has(url.pathname)) {
     e.respondWith(
       fetch(e.request)
         .then((res) => {
           /* redirected === Access (u otra puerta) devolvió su propio login en
-             vez del documento — no lo guardes como si fuera UltraXFiles. */
+             vez del documento — no lo guardes como si fuera el archivo real. */
           if (res.ok && !res.redirected) {
             const copia = res.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(e.request, copia));
           }
           return res;
         })
-        .catch(() => caches.match(e.request).then((c) => c || caches.match('./ultraxfiles/index.html')))
+        .catch(() => caches.match(e.request).then((c) => c || (esDocumentoUXF(url) ? caches.match('./ultraxfiles/index.html') : undefined)))
     );
     return;
   }

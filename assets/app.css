@@ -1565,7 +1565,15 @@ html[data-dpane="read"] .dock-body { display: none; }
      Atlas does instead." */
   overscroll-behavior: contain;
 }
-.dock-read { touch-action: pan-y; }
+/* touch-action: pan-y here (an earlier attempt) told the browser this
+   element does its own native panning — but .dock-read has nothing to
+   pan, the scrollable content is inside the iframe's own document, which
+   the compositor can't see. The browser tried to honor that promise
+   anyway and came up with nothing to move, which is a good description
+   of "sigue fijo": not blocked, just handed to a gesture with nowhere to
+   go, ahead of the JS relay below that actually knows where to send it.
+   touch-action: none leaves that JS the only thing touch reaches. */
+.dock-read { touch-action: none; }
 .dock-sec {
   font-family: var(--mono);
   font-size: 8px;

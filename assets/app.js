@@ -1818,6 +1818,22 @@ let dockPane = 'read';
 function openDock(id, pane) {
   const e = CODEX.entries.find(x => x.id === id);
   if (!e) return;
+
+  /* The dock is a side panel with an embedded iframe reading the chapter
+     in place. Below the width where that panel stops being a genuine
+     *side* panel (it already shrinks to ~94vw there, see --dock-w),
+     that embedded iframe has not scrolled reliably by touch through
+     several different fixes aimed at it directly — while the exact same
+     content in the full-width reader (#reader/#rdFrame) always has. Skip
+     the twin that doesn't work and go straight to the one that does,
+     instead of continuing to chase why a narrow embedded copy of it
+     specifically won't take a touch scroll. Details (the other dock tab
+     — stage, confidence, sections) isn't an iframe and was never part of
+     this, so it still opens in the dock as normal. */
+  if ((pane || dockPane) === 'read' && CAN_READ_INLINE && window.matchMedia('(max-width: 900px)').matches) {
+    return openReader(id);
+  }
+
   const c = areaColor(e.area);
   const rec = topicRec(e.id);
   const same = $('#dock').dataset.id === id;
