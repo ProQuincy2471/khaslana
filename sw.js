@@ -21,7 +21,7 @@
    Bump CACHE_NAME when the shell itself changes shape (new files added
    to CORE, a renamed asset) — old caches are swept on activate. */
 
-const CACHE_NAME = 'khaslana-2026.08.19-d';
+const CACHE_NAME = 'khaslana-2026.08.19-e';
 const CORE = [
   './',
   './index.html',

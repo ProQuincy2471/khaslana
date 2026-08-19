@@ -2693,6 +2693,26 @@ function mountRoomNotes() {
 }
 
 function go(view) {
+  /* Files and Wellbeing are each a whole separate app embedded in an
+     iframe. Every fix aimed at getting a touch drag to reach inside that
+     iframe on a phone — locking the page scroll behind it, matching
+     #reader's always-mounted shape instead of display:none/block,
+     forcing momentum scroll straight into the iframe's own document —
+     went in, and none of them came back confirmed working. There's no
+     way to test any further iframe-side theory against real hardware
+     here, and "debe quedar sí o sí" isn't served by a fourth guess at
+     the same mechanism. So: stop routing around it and remove it
+     instead, below the width where a side panel was ever the point.
+     A real navigation — leaving the iframe, leaving Khaslana's page
+     entirely for the one the phone is actually now on — has no iframe
+     for a touch drag to fail to reach, because there isn't one anymore.
+     Whatever was blocking it stops applying by construction, not by
+     another attempt at outsmarting it. The edge-swipe-back gesture (or
+     the browser's own back control) returns to Khaslana afterward. */
+  if ((view === 'files' || view === 'wellbeing') && window.matchMedia('(max-width: 900px)').matches) {
+    location.href = view === 'files' ? './ultraxfiles/' : './wellbeing/';
+    return;
+  }
   S.view = view; save();
   document.documentElement.style.setProperty('--acc', roomAccent(view));
   if (view !== 'atlas') { closeDock(); if (typeof graphPause === 'function') graphPause(); }
@@ -3310,7 +3330,19 @@ updateNavTags();
 const left = Math.max(0, daysBetween(todayKey(), S.examDate));
 $('#railCount').innerHTML = `<b>${left}</b> days<br>${Math.floor(left/7)} weeks, ${left%7} days`;
 
-go(RENDER[S.view] ? S.view : 'dawn');
+/* go() now navigates away entirely for files/wellbeing on a phone instead
+   of switching to them in-app (see go() itself for why). Restoring one of
+   those two as the boot view on that same phone would fire that
+   navigation before anyone touched anything — and worse, coming back to
+   Khaslana afterward boots into the same saved view and immediately
+   fires it again. An unrequested, unbreakable bounce. Land on Dawn there
+   instead; Files and Wellbeing are one tap away either way. */
+{
+  const bootView = RENDER[S.view] ? S.view : 'dawn';
+  const bootsIntoABounce = window.matchMedia('(max-width: 900px)').matches &&
+    (bootView === 'files' || bootView === 'wellbeing');
+  go(bootsIntoABounce ? 'dawn' : bootView);
+}
 
 /* Look at the folder every time the app opens. Whatever is in there is what
    you get — no command to remember, no step to forget on a Monday. */
