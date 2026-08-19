@@ -161,6 +161,12 @@
       <button data-view="setup" title="Setup — the March, shortcuts, motion, data (7)">
         <svg class="ico" viewBox="0 0 16 16"><path d="M2.6 4.4h10.8M2.6 8h10.8M2.6 11.6h10.8"/><circle cx="10.6" cy="4.4" r="1.5"/><circle cx="5.4" cy="8" r="1.5"/><circle cx="9.2" cy="11.6" r="1.5"/></svg>
         Setup <span class="tag">tools</span></button>
+      <button data-view="wellbeing" title="Wellbeing — ACP transition &amp; resilience guide (8)">
+        <svg class="ico" viewBox="0 0 16 16">
+          <path d="M12.8 2.6c-5 0-8 2.4-8.4 6.9-.2 1.9.9 3.4 2.9 3 3.4-.7 5.9-4.8 5.5-9.9z"/>
+          <path d="M3.6 11.4c2.1-2.2 3.9-3.8 6.5-5.3"/>
+        </svg>
+        Wellbeing <span class="tag">resilience</span></button>
     </nav>
 
     <div class="rail-glass empty" id="railGlass"></div>
@@ -483,6 +489,29 @@
           <p class="uxf-fail-sub">Si acabas de instalar la app, vuelve a entrar con red
              para que se guarde. También puedes abrirlo aparte.</p>
           <a class="btn sm" id="uxfOut" href="./ultraxfiles/" target="_blank" rel="noopener">Abrir aparte ↗</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── WELLBEING ───
+         Misma frontera que Files, por la misma razón: la guía ACP trae su
+         propio CSS y su propio enrutamiento por hash (#/home, #/start…),
+         completo y autocontenido en un solo archivo bajo ./wellbeing/. Un
+         iframe es lo único que garantiza que ninguno de los dos sistemas
+         le pise los estilos o el historial al otro. -->
+    <section class="view" id="view-wellbeing">
+      <div class="wb">
+        <div class="wb-load" id="wbLoad">
+          <span class="wb-spin"></span>
+          <span>Abriendo la guía…</span>
+        </div>
+        <iframe class="wb-frame" id="wbFrame" title="Wellbeing — ACP transition guide"
+                loading="lazy" referrerpolicy="no-referrer"></iframe>
+        <div class="wb-fail" id="wbFail" hidden>
+          <p><b>No se pudo abrir la guía.</b></p>
+          <p class="wb-fail-sub">Si acabas de instalar la app, vuelve a entrar con red
+             para que se guarde. También puedes abrirla aparte.</p>
+          <a class="btn sm" id="wbOut" href="./wellbeing/" target="_blank" rel="noopener">Abrir aparte ↗</a>
         </div>
       </div>
     </section>

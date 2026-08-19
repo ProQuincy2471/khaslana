@@ -21,7 +21,7 @@
    Bump CACHE_NAME when the shell itself changes shape (new files added
    to CORE, a renamed asset) — old caches are swept on activate. */
 
-const CACHE_NAME = 'khaslana-2026.08.19-c';
+const CACHE_NAME = 'khaslana-2026.08.19-d';
 const CORE = [
   './',
   './index.html',
@@ -42,6 +42,11 @@ const CORE = [
      la primera vez que se abre la pestaña y ahí se quedan. Listarlos aquí
      obligaría a reescribir este archivo en cada compilación. */
   './ultraxfiles/index.html',
+  /* La guía de Wellbeing: un solo archivo autocontenido, sin assets propios
+     que listar — cache-first como los capítulos del Atlas, no network-first
+     como la cáscara: es contenido que Jordan trae ya terminado, no código
+     que este proyecto siga cambiando semana a semana. */
+  './wellbeing/index.html',
 ];
 
 /* Descarga y guarda un archivo del CORE — pero nunca a ciegas. Detrás de

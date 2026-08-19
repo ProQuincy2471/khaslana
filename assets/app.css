@@ -3004,9 +3004,73 @@ html[data-aspect="alatus"]   { --ember: #7ec9a4; --gold: #c9e4d2; }
    de 570 kB de aplicación justo al montarla. Aquí no compensa. */
 #view-files { animation: none; }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   WELLBEING — guía ACP embebida
+   ═══════════════════════════════════════════════════════════════════════
+
+   Mismo patrón que Files, deliberadamente: la guía trae su propio CSS
+   completo y su propio enrutamiento por hash, así que la única frontera
+   segura entre los dos es un iframe — igual que UltraXFiles. Estas reglas
+   son un espejo exacto de .uxf, no una reinvención: ese patrón ya pasó
+   por el ciclo completo (zoom en móvil, scroll bloqueado detrás del
+   panel, el fondo compitiendo por el gesto táctil) en las vistas Files y
+   Atlas antes de llegar aquí ya resuelto. */
+
+.wb {
+  position: relative;
+  margin: -46px -54px -90px;
+  height: 100vh;
+  height: 100dvh;
+  background: #0b0c0e;
+  overflow: hidden;
+}
+
+.wb-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.wb-load,
+.wb-fail {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--ink-3, #8b93a4);
+  font-size: 13px;
+  text-align: center;
+  padding: 24px;
+  background: #0b0c0e;
+}
+.wb-fail { gap: 8px; }
+.wb-fail p { margin: 0; }
+.wb-fail b { color: var(--ink, #e8eaee); }
+.wb-fail-sub { max-width: 42ch; line-height: 1.55; }
+.wb-fail .btn { margin-top: 10px; }
+
+.wb-spin {
+  width: 18px; height: 18px;
+  border: 2px solid color-mix(in srgb, var(--acc) 30%, transparent);
+  border-top-color: var(--acc);
+  border-radius: 50%;
+  animation: uxfSpin 0.7s linear infinite;
+}
+
+#view-wellbeing { animation: none; }
+
 @media (max-width: 900px) {
   /* Debajo: la barra de pestañas de Khaslana es fija y se come el pie. */
   .uxf {
+    margin: -26px -20px -100px;
+    height: calc(100vh - 46px - env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh - 46px - env(safe-area-inset-bottom, 0px));
+  }
+  .wb {
     margin: -26px -20px -100px;
     height: calc(100vh - 46px - env(safe-area-inset-bottom, 0px));
     height: calc(100dvh - 46px - env(safe-area-inset-bottom, 0px));
@@ -3031,8 +3095,13 @@ html[data-aspect="alatus"]   { --ember: #7ec9a4; --gold: #c9e4d2; }
      drag over UltraXFiles had the same competing scrollable body the
      Atlas dock did before this exact rule was added for it. */
   html.files-open, html.files-open body { overflow: hidden; }
+
+  /* Wellbeing gets it from the start, not after a bug report — it's the
+     exact same embedding shape as Files, so it would have hit the exact
+     same missing lock the moment anyone tried to scroll it on a phone. */
+  html.wellbeing-open, html.wellbeing-open body { overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .uxf-spin { animation-duration: 2s; }
+  .uxf-spin, .wb-spin { animation-duration: 2s; }
 }

@@ -2602,12 +2602,55 @@ function renderFiles() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   WELLBEING — la guía ACP embebida
+   ═══════════════════════════════════════════════════════════════════════
+
+   Mismo trato que Files, por la misma razón: un solo archivo autocontenido
+   bajo ./wellbeing/, montado perezosamente, con la misma salida en caso de
+   fallo en vez de un rectángulo negro. */
+
+let wellbeingMounted = false;
+
+function renderWellbeing() {
+  const frame = $('#wbFrame');
+  const load  = $('#wbLoad');
+  const fail  = $('#wbFail');
+  if (!frame || wellbeingMounted) return;
+  wellbeingMounted = true;
+
+  const stamp = BUILD;
+  const t = setTimeout(() => {
+    if (load) load.hidden = true;
+    if (fail) fail.hidden = false;
+  }, 12000);
+
+  frame.addEventListener('load', () => {
+    clearTimeout(t);
+    if (load) load.hidden = true;
+    if (fail) fail.hidden = true;
+  }, { once: true });
+
+  frame.addEventListener('error', () => {
+    clearTimeout(t);
+    if (load) load.hidden = true;
+    if (fail) fail.hidden = false;
+  }, { once: true });
+
+  frame.src = './wellbeing/index.html?v=' + encodeURIComponent(stamp);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    ROUTING
    ═══════════════════════════════════════════════════════════════════════ */
 
 const RENDER = {
   dawn: renderDawn, atlas: renderAtlas, path: renderPath,
   chronicle: renderChronicle, embers: renderEmbers, files: renderFiles, setup: renderSetup,
+  /* Last on purpose: the number-key shortcuts (see the keydown handler
+     below) are just this object's key order, 1-indexed. Adding wellbeing
+     anywhere earlier would silently bump Setup from 7 to 8 for anyone who
+     already has that muscle memory. */
+  wellbeing: renderWellbeing,
 };
 const VIEWS = Object.keys(RENDER);
 
@@ -2639,6 +2682,11 @@ function go(view) {
      right behind it that the Atlas dock did before that same fix landed
      there. See the html.files-open rule in app.css. */
   document.documentElement.classList.toggle('files-open', view === 'files');
+  /* Same embedding shape as Files (position: relative, negative margins,
+     an iframe that fills the screen without ever leaving document flow) —
+     it needs the exact same lock, from the start, not after someone hits
+     the same bug on a phone. */
+  document.documentElement.classList.toggle('wellbeing-open', view === 'wellbeing');
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + view));
   $$('#nav button').forEach(b => b.classList.toggle('on', b.dataset.view === view));
   RENDER[view]?.();
