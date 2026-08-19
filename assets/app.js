@@ -224,13 +224,17 @@ for (const d of [1, 2, 3, 4, 5]) DEFAULT_TEMPLATES[d] = weekdayTemplate(d);
 const DEFAULT_SHORTCUTS = [
   { id: uid(), label: 'Spotify',  url: 'https://open.spotify.com',    app: 'spotify://open',  color: '#1DB954' },
   { id: uid(), label: 'WhatsApp', url: 'https://web.whatsapp.com',    app: 'whatsapp://send', color: '#25D366' },
-  { id: uid(), label: 'YouTube',  url: 'https://youtube.com',         app: '',           color: '#FF3B30' },
-  { id: uid(), label: 'Gmail',    url: 'https://mail.google.com',     app: '',           color: '#EA6C5B' },
-  { id: uid(), label: 'ChatGPT',  url: 'https://chatgpt.com',         app: '',           color: '#10A37F' },
-  { id: uid(), label: 'Claude',   url: 'https://claude.ai',           app: '',           color: '#D97757' },
-  { id: uid(), label: 'Chess',    url: 'https://chess.com',           app: '',           color: '#81B64C' },
-  { id: uid(), label: 'Drive',    url: 'https://drive.google.com',    app: '',           color: '#F4C025' },
-  { id: uid(), label: 'Calendar', url: 'https://calendar.google.com', app: '',           color: '#5B9BF8' },
+  { id: uid(), label: 'YouTube',  url: 'https://youtube.com',         app: '',                    color: '#FF3B30' },
+  /* YouTube opens natively with app: '' because youtube.com is a Universal
+     Link Google itself registers — these four aren't, so without a real
+     scheme the chip could only ever reach the web version. Chess and
+     Calendar are left blank: neither app publishes one to try. */
+  { id: uid(), label: 'Gmail',    url: 'https://mail.google.com',     app: 'googlegmail://',      color: '#EA6C5B' },
+  { id: uid(), label: 'ChatGPT',  url: 'https://chatgpt.com',         app: 'chatgpt://',          color: '#10A37F' },
+  { id: uid(), label: 'Claude',   url: 'https://claude.ai',           app: 'claude://',           color: '#D97757' },
+  { id: uid(), label: 'Chess',    url: 'https://chess.com',           app: '',                    color: '#81B64C' },
+  { id: uid(), label: 'Drive',    url: 'https://drive.google.com',    app: 'googledrive://',      color: '#F4C025' },
+  { id: uid(), label: 'Calendar', url: 'https://calendar.google.com', app: '',                    color: '#5B9BF8' },
 ];
 
 /* Drawn, not fetched — a favicon would mean a request to nine companies
@@ -319,6 +323,15 @@ function load() {
       /* An early build shipped bare schemes with no path; those don't resolve. */
       if (sc.app === 'spotify:')    sc.app = 'spotify://open';
       if (sc.app === 'whatsapp://') sc.app = 'whatsapp://send';
+      /* Gmail, ChatGPT, Claude and Drive shipped with app: '' before their
+         schemes were known — that blank is baked into every saved state, so
+         bumping DEFAULT_SHORTCUTS alone never reaches a device that already
+         has shortcuts. Fill the gap the same way a first-run would, unless
+         the field holds a scheme of its own (someone typed one in by hand). */
+      if (sc.app === '') {
+        const d = DEFAULT_SHORTCUTS.find(x => x.label.toLowerCase() === String(sc.label).toLowerCase());
+        if (d && d.app) sc.app = d.app;
+      }
     }
     /* Blocks predate the notion of repeating across days. Give every block a
        key, and let identical time+text on different days share one — so the
@@ -2484,6 +2497,60 @@ function renderFiles() {
   }, { once: true });
 
   frame.src = './ultraxfiles/index.html?v=' + encodeURIComponent(stamp);
+  frame.addEventListener('load', initUxfTouchScroll, { once: true });
+}
+
+/* iOS has a long-standing WebKit bug where a touch drag never reaches the
+   scrollable content inside a same-origin iframe — taps land fine, but a
+   finger dragged across it moves nothing. It shows up in plain Safari and
+   is worse once the app is installed (standalone mode). UltraXFiles scrolls
+   its own `<main class="principal">`, not the iframe's body, so even a
+   working native drag on the outer page wouldn't reach it.
+   Since the iframe is same-origin, its DOM is reachable: this drives the
+   scroll container under the finger by hand instead of waiting on a
+   gesture WebKit never delivers. Gated to iOS so it never runs where the
+   native drag already works (desktop, Android) and doesn't double it up. */
+const IS_IOS = /iP(hone|ad|od)/.test(navigator.platform) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+function initUxfTouchScroll() {
+  if (!IS_IOS) return;
+  const wrap  = $('.uxf');
+  const frame = $('#uxfFrame');
+  if (!wrap || !frame || wrap.dataset.touchScrollBound) return;
+  wrap.dataset.touchScrollBound = '1';
+
+  const scrollableAt = (x, y) => {
+    let doc;
+    try { doc = frame.contentDocument; } catch { return null; }
+    if (!doc) return null;
+    let el = doc.elementFromPoint(x, y);
+    while (el && el !== doc.documentElement) {
+      const cs = doc.defaultView.getComputedStyle(el);
+      if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 2) return el;
+      el = el.parentElement;
+    }
+    return doc.scrollingElement || null;
+  };
+
+  let target = null, lastY = 0;
+
+  wrap.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    const r = frame.getBoundingClientRect();
+    target = scrollableAt(t.clientX - r.left, t.clientY - r.top);
+    lastY = t.clientY;
+  }, { passive: true });
+
+  wrap.addEventListener('touchmove', (e) => {
+    if (!target) return;
+    const t = e.touches[0];
+    target.scrollTop += lastY - t.clientY;
+    lastY = t.clientY;
+    e.preventDefault();
+  }, { passive: false });
+
+  wrap.addEventListener('touchend', () => { target = null; });
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -2534,17 +2601,34 @@ document.addEventListener('click', (ev) => {
 
   /* Native app links: hand the scheme to the OS through a throwaway iframe.
      Letting the anchor navigate hands the whole tab to the URL handler, and
-     Chrome then tears the page down — which is why Khaslana kept closing. */
+     Chrome then tears the page down — which is why Khaslana kept closing.
+
+     Not every scheme here is one the app publishes and confirms — YouTube's
+     app: '' works today only because google.com/youtube is itself a
+     Universal Link, which the others aren't. A scheme that's wrong, or
+     whose app just isn't installed, used to mean the chip did nothing at
+     all with no sign of failure. Now it's timed: the OS switching away to
+     the app is what hides the tab, so if this tab is still the visible one
+     after a beat, the scheme didn't take, and the ↗'s own web address
+     opens instead — same outcome as tapping ↗ by hand. */
   const appLink = t.closest('[data-app]');
   if (appLink) {
     ev.preventDefault();
     const scheme = appLink.dataset.app;
+    const webFallback = appLink.parentElement?.querySelector('.sc-web')?.href || '';
+    let handedOff = false;
+    const onHide = () => { handedOff = true; };
+    document.addEventListener('visibilitychange', onHide, { once: true });
     const f = document.createElement('iframe');
     f.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
     document.body.appendChild(f);
     try { f.contentWindow.location.href = scheme; }
     catch { f.src = scheme; }
-    setTimeout(() => f.remove(), 2000);
+    setTimeout(() => {
+      f.remove();
+      document.removeEventListener('visibilitychange', onHide);
+      if (!handedOff && webFallback) window.open(webFallback, '_blank', 'noopener');
+    }, 1200);
     return;
   }
 
