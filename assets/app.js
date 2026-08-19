@@ -443,12 +443,35 @@ const b64decodeUtf8 = (b64) => decodeURIComponent(escape(atob(b64.replace(/\n/g,
 let ghSha = null;          // cached sha of the last known remote file
 let ghPushPending = false;
 let ghLastSyncedAt = 0;    // for the Setup status line
+let ghLastError = null;    // the thing that made every sync failure invisible until now
+
+/* A bad/expired token, a repo typo, or GitHub itself being unreachable all
+   used to land in the same silent `catch {}` as "offline, try later" —
+   indistinguishable from working sync to anyone looking at the Setup
+   screen, which is exactly the failure mode "dice que están conectados
+   pero nunca se sincroniza" describes. Every catch below now runs this
+   first, so the status line can say what actually happened instead of
+   just going quiet. */
+function ghNoteError(err) {
+  const msg = String(err?.message || err || 'unknown error');
+  let hint = msg;
+  if (/\b401\b/.test(msg)) hint = 'The token was rejected (401) — it may have expired or been revoked. Generate a new one in Setup.';
+  else if (/\b403\b/.test(msg)) hint = "The token doesn't have permission (403) — check it has Contents: Read and write on this repo.";
+  else if (/\b404\b/.test(msg)) hint = "Repo not found (404) — check the owner/repo spelling in Setup.";
+  else if (/\b409\b/.test(msg)) hint = null; // handled as a normal retry, not a user-facing error
+  if (hint) { ghLastError = hint; renderSyncStatus(); }
+}
 
 async function ghGetFile(cfg) {
-  const res = await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${GH_PATH}`, {
-    headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json' },
-    cache: 'no-store',
-  });
+  let res;
+  try {
+    res = await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${GH_PATH}`, {
+      headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json' },
+      cache: 'no-store',
+    });
+  } catch (err) {
+    throw new Error('network: ' + (err?.message || err));
+  }
   if (res.status === 404) return { sha: null, doc: null };
   if (!res.ok) throw new Error('github get ' + res.status);
   const json = await res.json();
@@ -495,16 +518,35 @@ async function ghFlush() {
       const json = await res.json();
       ghSha = json.content.sha;
       ghLastSyncedAt = Date.now();
+      ghLastError = null;
       renderSyncStatus();
     } else if (res.status === 409) {
       /* the other device wrote since we last checked — refetch the sha
          and let the next tick retry rather than clobbering it blind */
       ghSha = null;
       ghPushPending = true;
+    } else {
+      let detail = '';
+      try { detail = (await res.json())?.message || ''; } catch {}
+      ghPushPending = true;   // don't drop the edit — retry once whatever's wrong gets fixed
+      throw new Error(`github put ${res.status}${detail ? ': ' + detail : ''}`);
     }
-  } catch { /* offline, bad token, or not configured — local save already happened */ }
+  } catch (err) { ghNoteError(err); }
 }
 setInterval(ghFlush, 60000);
+/* The push side re-checks the remote before writing, but that only
+   catches a device that's already stale AT THE MOMENT it pushes — it
+   does nothing about how it got stale. A tab that's simply left open,
+   never backgrounded (so the visibilitychange pull below never fires),
+   sitting on the phone's edit from an hour ago: the next trivial local
+   action here — a scratch-pad keystroke, a zoom nudge, anything that
+   calls save() — stamps *now* as this device's updatedAt. That's newer
+   than the phone's real edit by the clock, so last-write-wins pushes it
+   and erases the phone's edit, even though the content being pushed is
+   the stale copy. A periodic pull, not just one at boot and one on
+   refocus, is what actually keeps a long-open tab from drifting into
+   that window in the first place. */
+setInterval(() => { if (!document.hidden) syncPull().then(renderSyncStatus); }, 60000);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) ghFlush();
   /* Coming back to a tab that was just left open — Setup connected, no
@@ -527,12 +569,13 @@ async function syncPull() {
   try {
     const cur = await ghGetFile(cfg);
     ghSha = cur.sha;
+    ghLastError = null;
     if (!cur.doc || !cur.doc.updatedAt) return;
     ghLastSyncedAt = Date.now();
     if (cur.doc.updatedAt <= (S.updatedAt || 0)) return;
     localStorage.setItem(STORE, JSON.stringify({ ...cur.doc.state, updatedAt: cur.doc.updatedAt }));
     location.reload();
-  } catch { /* offline, bad token, or not configured yet — local state stands */ }
+  } catch (err) { ghNoteError(err); }
 }
 
 function renderSyncStatus() {
@@ -548,7 +591,19 @@ function renderSyncStatus() {
      making the case that it isn't. */
   if (tokenInput) tokenInput.placeholder = cfg ? 'Saved on this device — leave blank to keep it' : 'Personal access token';
   if (!el) return;
-  if (!cfg) { el.textContent = 'Not connected.'; return; }
+  if (!cfg) { el.textContent = 'Not connected.'; el.className = 'entry-sub'; return; }
+  /* Every sync failure used to land in a bare `catch {}` — a dead token,
+     no permission, a typo'd repo, all looked identical to "hasn't had
+     anything to push yet" from here, which is exactly how "dice que
+     están conectados" and "nunca se sincroniza" coexist. Show the real
+     failure the moment there is one, ahead of the otherwise-reassuring
+     "Connected to…" line, instead of only ever reporting success. */
+  if (ghLastError) {
+    el.textContent = `Connected to ${cfg.repo}, but the last sync failed: ${ghLastError}`;
+    el.className = 'entry-sub scan-status error';
+    return;
+  }
+  el.className = 'entry-sub';
   el.textContent = ghLastSyncedAt
     ? `Connected to ${cfg.repo}. Last synced ${new Date(ghLastSyncedAt).toLocaleTimeString()}.`
     : `Connected to ${cfg.repo}. Not synced yet this session.`;
