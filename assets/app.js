@@ -2693,6 +2693,14 @@ function go(view) {
   S.view = view; save();
   document.documentElement.style.setProperty('--acc', roomAccent(view));
   if (view !== 'atlas') { closeDock(); if (typeof graphPause === 'function') graphPause(); }
+  /* Files never got the scroll lock docked/reading both have — .uxf fills
+     the screen visually (negative margins pulling it past .main's padding)
+     but stays in normal document flow, position: relative, not fixed. The
+     page underneath was never actually told to stop scrolling, so a touch
+     drag over UltraXFiles had the same normally-scrollable body sitting
+     right behind it that the Atlas dock did before that same fix landed
+     there. See the html.files-open rule in app.css. */
+  document.documentElement.classList.toggle('files-open', view === 'files');
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + view));
   $$('#nav button').forEach(b => b.classList.toggle('on', b.dataset.view === view));
   RENDER[view]?.();

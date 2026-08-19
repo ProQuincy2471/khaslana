@@ -3006,6 +3006,14 @@ html[data-aspect="alatus"]   { --ember: #7ec9a4; --gold: #c9e4d2; }
      locking only one of them is exactly the kind of fix that works in a
      desktop browser's emulator and does nothing on the phone it's for. */
   html.docked, html.docked body { overflow: hidden; }
+
+  /* Same fix, same reason, for Files: .uxf fills the screen visually
+     through negative margins pulling it past .main's padding, but it's
+     position: relative, not fixed — it never left normal document flow.
+     Nothing ever told the page under it to stop scrolling, so a touch
+     drag over UltraXFiles had the same competing scrollable body the
+     Atlas dock did before this exact rule was added for it. */
+  html.files-open, html.files-open body { overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
