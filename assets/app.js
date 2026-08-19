@@ -464,9 +464,22 @@ async function ghFlush() {
   if (!cfg || !ghPushPending) return;
   ghPushPending = false;
   try {
-    if (ghSha === null) {
-      const cur = await ghGetFile(cfg);
-      ghSha = cur.sha;
+    /* Re-check the remote right before writing, sha or no sha. A cached sha
+       only proves nothing's changed there since it was last fetched — it
+       says nothing about whether THIS device's S is the newer copy. Sync
+       here is the whole document, last write wins by clock, not a merge:
+       pushing stale local state over a genuinely newer remote (the other
+       device wrote since this tab last pulled) would silently erase
+       whatever changed there — tick a task on the phone, then an
+       already-open computer tab autosaves and overwrites it back to
+       untouched. Adopt the newer copy instead of pushing over it, the
+       same way syncPull() does at boot. */
+    const cur = await ghGetFile(cfg);
+    ghSha = cur.sha;
+    if (cur.doc && cur.doc.updatedAt > (S.updatedAt || 0)) {
+      localStorage.setItem(STORE, JSON.stringify({ ...cur.doc.state, updatedAt: cur.doc.updatedAt }));
+      location.reload();
+      return;
     }
     const body = {
       message: 'sync ' + new Date(S.updatedAt).toISOString(),
@@ -492,7 +505,15 @@ async function ghFlush() {
   } catch { /* offline, bad token, or not configured — local save already happened */ }
 }
 setInterval(ghFlush, 60000);
-document.addEventListener('visibilitychange', () => { if (document.hidden) ghFlush(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) ghFlush();
+  /* Coming back to a tab that was just left open — Setup connected, no
+     local edit pending here — never re-checked before this: syncPull()
+     only ran once, at boot. Ticking a task on the phone then switching
+     back to a computer tab that's been sitting open the whole time is
+     exactly the case that silently showed nothing. */
+  else syncPull().then(renderSyncStatus);
+});
 window.addEventListener('pagehide', () => { if (ghPushPending) ghFlush(); });
 
 /* Runs once at boot, after the page has already painted with whatever was
