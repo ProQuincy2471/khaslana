@@ -2678,6 +2678,7 @@ document.addEventListener('click', (ev) => {
 
   if (t.id === 'staleReload' || t.id === 'btnForceReload') return hardReload();
   if (t.id === 'staleDismiss') { $('#staleBanner')?.remove(); return; }
+  if (t.id === 'btnForceRefresh') return forgetDeviceCache();
   if (t.id === 'btnRelock') {
     localStorage.removeItem('khaslana.unlocked.v1');
     location.reload();
@@ -3146,6 +3147,31 @@ function showUpdateBanner() {
    `location.reload()` alone can still be served out of the back/forward
    cache in some browsers, which skips the network entirely. */
 function hardReload() {
+  location.replace(location.pathname + '?_r=' + Date.now());
+}
+
+/* The button for when reloading isn't enough — unregisters this device's
+   service worker and empties the Cache Storage API entirely, so the next
+   load re-fetches every file from the network with nothing old left to
+   fall back on. This is the one fix for a poisoned cache (a bad response
+   saved before Access let a real one through, say), because a poisoned
+   cache answers every reload from the same bad copy — reloading harder
+   changes nothing when the thing being asked is the thing that's wrong.
+   No prompt: it's reversible in the sense that matters, since the very
+   next load just rebuilds the cache from whatever's actually live. */
+async function forgetDeviceCache() {
+  const status = $('#forceRefreshStatus');
+  if (status) status.textContent = 'Clearing…';
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    if ('caches' in window) {
+      const names = await caches.keys();
+      await Promise.all(names.map(n => caches.delete(n)));
+    }
+  } catch { /* whatever didn't clear, the reload below still forces a fresh fetch */ }
   location.replace(location.pathname + '?_r=' + Date.now());
 }
 

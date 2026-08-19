@@ -589,6 +589,19 @@
               <button class="btn" id="btnForceReload">Reload now</button>
             </div>
             <div class="entry-sub" style="margin-top:12px">Build loaded in this tab: <span id="buildStampSetup">—</span></div>
+            <div class="entry-sub" style="margin-top:16px">
+              Reload asks for what's new but still trusts what this device already saved
+              offline — the service worker's own cache. Almost always right. When it's
+              wrong (a bad file cached before you'd logged in, from behind Access, is the
+              one way this has actually happened), no amount of reloading fixes it, because
+              reloading is exactly the thing serving the bad copy. This forgets everything
+              this device saved for offline use and re-downloads it clean — the fix that
+              used to mean deleting the app and reinstalling it.
+            </div>
+            <div class="row" style="margin-top:10px">
+              <button class="btn" id="btnForceRefresh">Forget this device's cache</button>
+            </div>
+            <div class="entry-sub" style="margin-top:8px" id="forceRefreshStatus"></div>
           </div>
 
           <div class="card">
