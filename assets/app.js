@@ -537,8 +537,17 @@ async function syncPull() {
 
 function renderSyncStatus() {
   const el = $('#syncStatus');
-  if (!el) return;
+  const tokenInput = $('#syncToken');
   const cfg = ghConfig();
+  /* The token field is blank on every load, on every device, always — it's
+     never written back into the input once saved, so nothing readable ever
+     sits in the DOM. That's deliberate, not a sign it was lost, but a
+     blank password field next to a form reads as "empty" regardless of
+     intent. The line below it is the real answer to "is this still
+     connected"; the placeholder here just stops the field itself from
+     making the case that it isn't. */
+  if (tokenInput) tokenInput.placeholder = cfg ? 'Saved on this device — leave blank to keep it' : 'Personal access token';
+  if (!el) return;
   if (!cfg) { el.textContent = 'Not connected.'; return; }
   el.textContent = ghLastSyncedAt
     ? `Connected to ${cfg.repo}. Last synced ${new Date(ghLastSyncedAt).toLocaleTimeString()}.`
@@ -2362,6 +2371,46 @@ function renderSetup() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   OPENING THINGS OUTSIDE THE APP
+   ═══════════════════════════════════════════════════════════════════════
+
+   An iOS home-screen PWA (display-mode: standalone) has no tab strip, so
+   window.open()/target="_blank" often just does nothing there — no error,
+   no new tab, the tap looks ignored. Same-tab navigation always works
+   because it never needs one. Everywhere else — a normal browser tab —
+   window.open still opens a real new tab, so Khaslana stays open behind
+   it instead of being replaced just to check email. */
+const IS_STANDALONE = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+function openExternal(url) {
+  if (!url) return;
+  if (IS_STANDALONE) location.href = url;
+  else window.open(url, '_blank', 'noopener');
+}
+
+/* One shortcut chip, one native-scheme attempt, one fallback — used by both
+   the Dawn shortcut row and the Gate's own "Open" entries, which used to
+   duplicate this by hand and had drifted: the Gate's copy never got the
+   web fallback added below, so a shortcut with a scheme the OS didn't
+   recognize just silently did nothing when launched from ⌘K. */
+function openShortcut(scheme, webUrl) {
+  if (!scheme) return openExternal(webUrl);
+  let handedOff = false;
+  const onHide = () => { handedOff = true; };
+  document.addEventListener('visibilitychange', onHide, { once: true });
+  const f = document.createElement('iframe');
+  f.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
+  document.body.appendChild(f);
+  try { f.contentWindow.location.href = scheme; }
+  catch { f.src = scheme; }
+  setTimeout(() => {
+    f.remove();
+    document.removeEventListener('visibilitychange', onHide);
+    if (!handedOff) openExternal(webUrl);
+  }, 1200);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    THE GATE — one field that reaches everything (⌘K)
    ═══════════════════════════════════════════════════════════════════════ */
 
@@ -2385,14 +2434,7 @@ function gateSources() {
   for (const s of (S.shortcuts || [])) {
     out.push({
       kind: 'Open', label: s.label, sub: s.app || s.url, color: s.color,
-      run: () => {
-        if (!s.app) return window.open(s.url, '_blank');
-        const f = document.createElement('iframe');
-        f.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
-        document.body.appendChild(f);
-        try { f.contentWindow.location.href = s.app; } catch { f.src = s.app; }
-        setTimeout(() => f.remove(), 2000);
-      },
+      run: () => openShortcut(s.app, s.url),
     });
   }
 
@@ -2635,22 +2677,22 @@ document.addEventListener('click', (ev) => {
   const appLink = t.closest('[data-app]');
   if (appLink) {
     ev.preventDefault();
-    const scheme = appLink.dataset.app;
     const webFallback = appLink.parentElement?.querySelector('.sc-web')?.href || '';
-    let handedOff = false;
-    const onHide = () => { handedOff = true; };
-    document.addEventListener('visibilitychange', onHide, { once: true });
-    const f = document.createElement('iframe');
-    f.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
-    document.body.appendChild(f);
-    try { f.contentWindow.location.href = scheme; }
-    catch { f.src = scheme; }
-    setTimeout(() => {
-      f.remove();
-      document.removeEventListener('visibilitychange', onHide);
-      if (!handedOff && webFallback) window.open(webFallback, '_blank', 'noopener');
-    }, 1200);
+    openShortcut(appLink.dataset.app, webFallback);
     return;
+  }
+
+  /* Same standalone problem, wider net: any plain "open in a new tab" link
+     in the app (the chapter reader, UltraXFiles' "open apart", the Gate's
+     own ↗) is target="_blank", which is exactly the thing that goes quiet
+     on a home-screen iOS install. Same-tab navigation there instead. */
+  if (IS_STANDALONE) {
+    const blankLink = t.closest('a[target="_blank"][href]');
+    if (blankLink) {
+      ev.preventDefault();
+      location.href = blankLink.href;
+      return;
+    }
   }
 
   /* Must be scoped to the buttons: <html> also carries data-aspect, so a bare
