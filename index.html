@@ -175,6 +175,10 @@
       <button class="gate-hint" id="gateOpen">
         <span>Search anything</span><kbd>⌘K</kbd>
       </button>
+      <button class="gate-hint rail-sync" id="railSync" title="Pull whatever changed elsewhere, push whatever changed here">
+        <span id="railSyncText">Not connected</span>
+        <svg class="ico" viewBox="0 0 16 16"><path d="M13.3 4.6A5.6 5.6 0 1 0 14.2 8.6"/><path d="M13.3 1.6v3.4h-3.4"/></svg>
+      </button>
       <div class="countdown-mini" id="railCount"></div>
       <div class="build" id="buildStamp"></div>
     </div>
@@ -656,6 +660,17 @@
               device, always, even while connected. It's never written back in once
               saved, so there's nothing to display. The line just above this one is
               the real answer: if it says "Connected to…", nothing needs re-entering.
+            </div>
+            <div class="entry-sub" style="margin-top:16px">
+              Autosync waits — up to a minute, or until this tab goes to the
+              background — so ticking a task doesn't write a commit for every
+              keystroke. This skips the wait: pulls whatever's on GitHub first, then
+              pushes whatever's still only here. The same button lives in the rail,
+              under Search, on every screen — this one's just the version with a
+              full explanation next to it.
+            </div>
+            <div class="row" style="margin-top:10px">
+              <button class="btn" id="btnSyncNow">Sync now</button>
             </div>
           </div>
 

@@ -547,6 +547,10 @@ setInterval(ghFlush, 60000);
    refocus, is what actually keeps a long-open tab from drifting into
    that window in the first place. */
 setInterval(() => { if (!document.hidden) syncPull().then(renderSyncStatus); }, 60000);
+/* "Synced 3m ago" going stale on its own would undersell a sync that
+   genuinely just happened — this only re-renders the rail badge's text
+   against the clock, no network involved. */
+setInterval(() => { if (!document.hidden) renderRailSync(); }, 20000);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) ghFlush();
   /* Coming back to a tab that was just left open — Setup connected, no
@@ -590,6 +594,7 @@ function renderSyncStatus() {
      connected"; the placeholder here just stops the field itself from
      making the case that it isn't. */
   if (tokenInput) tokenInput.placeholder = cfg ? 'Saved on this device — leave blank to keep it' : 'Personal access token';
+  renderRailSync(cfg);
   if (!el) return;
   if (!cfg) { el.textContent = 'Not connected.'; el.className = 'entry-sub'; return; }
   /* Every sync failure used to land in a bare `catch {}` — a dead token,
@@ -607,6 +612,59 @@ function renderSyncStatus() {
   el.textContent = ghLastSyncedAt
     ? `Connected to ${cfg.repo}. Last synced ${new Date(ghLastSyncedAt).toLocaleTimeString()}.`
     : `Connected to ${cfg.repo}. Not synced yet this session.`;
+}
+
+/* The one-tap sync control in the rail, reachable from every room instead
+   of only from Setup — the whole point being asked for: somewhere to hit
+   "sync now" and see it actually happen, not just trust the 60-second
+   timer and a status line buried in a settings screen. */
+function renderRailSync(cfg = ghConfig()) {
+  const btn = $('#railSync');
+  const txt = $('#railSyncText');
+  if (!btn || !txt) return;
+  btn.classList.remove('ok', 'error', 'syncing');
+  if (!cfg) { txt.textContent = 'Not connected'; return; }
+  if (ghLastError) { btn.classList.add('error'); txt.textContent = 'Sync error — tap to retry'; return; }
+  if (ghPushPending) { txt.textContent = 'Changes pending — tap to sync'; return; }
+  btn.classList.add('ok');
+  txt.textContent = ghLastSyncedAt
+    ? 'Synced ' + timeAgoShort(Date.now() - ghLastSyncedAt)
+    : 'Connected — tap to sync';
+}
+
+const timeAgoShort = (ms) => {
+  const s = Math.floor(ms / 1000);
+  if (s < 5) return 'just now';
+  if (s < 60) return s + 's ago';
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + 'm ago';
+  return Math.floor(m / 60) + 'h ago';
+};
+
+let manualSyncRunning = false;
+async function manualSync() {
+  const cfg = ghConfig();
+  if (!cfg) { toast('Connect sync in Setup first'); return go('setup'); }
+  if (manualSyncRunning) return;
+  manualSyncRunning = true;
+  const btn = $('#railSync');
+  btn?.classList.add('syncing');
+  try {
+    /* Pull first — whatever changed elsewhere shows up here — then flush,
+       which pushes anything pending here (including whatever this exact
+       tap might be reacting to, if save()'s own debounce hasn't fired
+       yet). syncPull() reloads the page itself when it adopts something
+       newer, so nothing after that line runs in that case — the flush
+       and the toast below only fire when there was nothing new to pull. */
+    await syncPull();
+    await ghFlush();
+  } finally {
+    manualSyncRunning = false;
+    btn?.classList.remove('syncing');
+  }
+  renderSyncStatus();
+  if (ghLastError) toast('Sync failed — see Setup for why');
+  else toast('Synced');
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -2994,6 +3052,7 @@ document.addEventListener('click', (ev) => {
     renderSyncStatus();
     return;
   }
+  if (t.closest('#railSync') || t.id === 'btnSyncNow') return manualSync();
 
   /* Dock tabs */
   const dtab = t.closest('button.dtab[data-dtab]');

@@ -2298,6 +2298,12 @@ html.reading { overflow: hidden; }
 .gate-hint:hover { color: var(--paper); border-color: var(--line); }
 .gate-hint kbd { font-size: 8.5px; padding: 1px 4px; }
 
+.rail-sync .ico { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.rail-sync.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 32%, var(--line-2)); }
+.rail-sync.error { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 40%, var(--line-2)); }
+.rail-sync.syncing .ico { animation: railSyncSpin 0.8s linear infinite; }
+@keyframes railSyncSpin { to { transform: rotate(360deg); } }
+
 #gate {
   position: fixed;
   inset: 0;
