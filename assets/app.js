@@ -785,7 +785,16 @@ async function scanCodex(opts = {}) {
   try {
     const res = await fetch('codex/', { cache: 'no-store' });
     if (!res.ok) throw new Error(res.status);
-    files = parseListing(await res.text());
+    const body = await res.text();
+    /* Static hosts with no real directory (GitHub Pages, Cloudflare Pages)
+       don't 404 a missing "codex/" — they fall back to serving the app's
+       own index.html with a 200. That page has no chapter links in it, so
+       parseListing would read it as "the folder is now empty" and the code
+       below would delete every chapter already loaded from the pre-built
+       index. <title>KHASLANA</title> only appears in that shell, never in
+       a real listing, so it's the signal that this wasn't one. */
+    if (body.includes('<title>KHASLANA</title>')) throw new Error('no listing on this host');
+    files = parseListing(body);
   } catch (err) {
     scanState = { status: 'error', found: CODEX.entries.length, added: 0, gone: 0,
       note: `Could not read the folder (${err.message}). Showing the last built index.` };
