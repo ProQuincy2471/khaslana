@@ -3042,49 +3042,28 @@ html[data-aspect="alatus"]   { --ember: #7ec9a4; --gold: #c9e4d2; }
 
 #view-wellbeing { animation: none; }
 
-@media (max-width: 900px) {
-  /* Files and Wellbeing were still frozen for touch scroll after every fix
-     aimed at the page underneath them (the html.*-open locks below) — the
-     one structural thing they still had that the reader (#reader, which
-     has always scrolled fine by touch) doesn't: they're toggled with
-     .view's display: none → block. #reader is never display: none, only
-     ever opacity: 0 with pointer-events: none — it stays mounted and
-     rendered from first paint, just invisible. An iframe that's built
-     while its container is display: none, then revealed later by
-     switching display to block, is a known way for a WebKit page to end
-     up with a same-origin iframe whose own scrolling/compositing layer
-     never got established — taps still land (hit-testing doesn't care),
-     a touch drag doesn't (that needs the layer). Giving Files and
-     Wellbeing the exact same always-mounted, opacity-toggled shape as
-     #reader, instead of continuing to patch what's built on top of the
-     other shape, whether or not this specific theory is the whole
-     picture — matching the one embed in this app that has never had this
-     problem, structurally, is the most redundant-but-safe thing available
-     to try. */
-  #view-files, #view-wellbeing {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 55;   /* under .rail's 70 (the bottom tab bar), over everything else */
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.22s var(--ease);
-    animation: none;
-    background: #0b0c0e;
-    padding-bottom: calc(46px + env(safe-area-inset-bottom, 0px));
-  }
-  #view-files.on, #view-wellbeing.on { opacity: 1; pointer-events: auto; }
-
-  /* Now just filling whatever box the always-mounted section above gives
-     it — the section handles viewport coverage and the nav's reserved
-     space, so the margin/height arithmetic that used to live here (for
-     breaking .uxf/.wb out of .main's padding while still inside normal
-     flow) no longer applies; position: fixed took it out of flow instead. */
+/* Touch, not width, is what actually needs any of this. The dock's
+   embedded chapter iframe and Files/Wellbeing's own iframes only ever
+   had a scroll problem for a finger, never a mouse — a wide iPad in
+   landscape (>900px) is still a touchscreen and was falling through
+   every rule below that only checked screen width, which is exactly why
+   the dock preview and Files stayed unscrollable there while a narrow
+   phone (caught by max-width: 900px on its own) was fine. (hover: none)
+   and (pointer: coarse) together are the standard way to ask "is the
+   primary input here a finger" regardless of how wide that finger's
+   screen happens to be — matches the same JS check driving openDock()'s
+   and go()'s redirects to a real page instead of an embedded iframe. */
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+  /* Below this width — or on any touch device regardless of width —
+     openDock() and go() route Files, Wellbeing, and the dock's own
+     "Chapter" pane to a real navigation instead of an embedded iframe
+     (see app.js), so none of this is normally reachable there anymore.
+     Kept as the fallback shape for the one case that can still land
+     here: a non-touch browser window simply resized narrow. */
   .uxf, .wb {
-    position: static;
-    margin: 0;
-    width: 100%;
-    height: 100%;
+    margin: -26px -20px -100px;
+    height: calc(100vh - 46px - env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh - 46px - env(safe-area-inset-bottom, 0px));
   }
 
   /* The dock is `position: fixed`, but Atlas underneath it was never told
@@ -3096,21 +3075,11 @@ html[data-aspect="alatus"]   { --ember: #7ec9a4; --gold: #c9e4d2; }
      Both html and body get it — iOS Safari has historically treated
      <body>, not <html>, as the element actually carrying page scroll, so
      locking only one of them is exactly the kind of fix that works in a
-     desktop browser's emulator and does nothing on the phone it's for. */
+     desktop browser's emulator and does nothing on the phone it's for.
+     This one still matters on touch even after the redirects above: the
+     dock's "Details" tab (stage, confidence, sections) is plain content,
+     never redirected, and still needs the page behind it held still. */
   html.docked, html.docked body { overflow: hidden; }
-
-  /* Same fix, same reason, for Files: .uxf fills the screen visually
-     through negative margins pulling it past .main's padding, but it's
-     position: relative, not fixed — it never left normal document flow.
-     Nothing ever told the page under it to stop scrolling, so a touch
-     drag over UltraXFiles had the same competing scrollable body the
-     Atlas dock did before this exact rule was added for it. */
-  html.files-open, html.files-open body { overflow: hidden; }
-
-  /* Wellbeing gets it from the start, not after a bug report — it's the
-     exact same embedding shape as Files, so it would have hit the exact
-     same missing lock the moment anyone tried to scroll it on a phone. */
-  html.wellbeing-open, html.wellbeing-open body { overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {

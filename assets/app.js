@@ -1926,17 +1926,17 @@ function openDock(id, pane) {
   if (!e) return;
 
   /* The dock is a side panel with an embedded iframe reading the chapter
-     in place. Below the width where that panel stops being a genuine
-     *side* panel (it already shrinks to ~94vw there, see --dock-w),
-     that embedded iframe has not scrolled reliably by touch through
-     several different fixes aimed at it directly — while the exact same
-     content in the full-width reader (#reader/#rdFrame) always has. Skip
-     the twin that doesn't work and go straight to the one that does,
-     instead of continuing to chase why a narrow embedded copy of it
-     specifically won't take a touch scroll. Details (the other dock tab
-     — stage, confidence, sections) isn't an iframe and was never part of
+     in place. On touch input (see isTouchNarrow — a wide tablet counts:
+     it's still a finger, matchMedia('(max-width: 900px)') alone was
+     letting an iPad in landscape fall straight through to this and hit
+     the same unscrollable panel a phone used to), that embedded iframe
+     has not scrolled reliably through several different fixes aimed at
+     it directly — while the exact same content in the full-width reader
+     (#reader/#rdFrame) always has. Skip the twin that doesn't work and
+     go straight to the one that does. Details (the other dock tab —
+     stage, confidence, sections) isn't an iframe and was never part of
      this, so it still opens in the dock as normal. */
-  if ((pane || dockPane) === 'read' && CAN_READ_INLINE && window.matchMedia('(max-width: 900px)').matches) {
+  if ((pane || dockPane) === 'read' && CAN_READ_INLINE && isTouchNarrow()) {
     return openReader(id);
   }
 
@@ -2798,6 +2798,16 @@ function mountRoomNotes() {
   });
 }
 
+/* Touch, not viewport width, is what actually needed the "route to a
+   real page instead of an iframe" fix — a wide iPad in landscape is
+   still a finger, and matchMedia('(max-width: 900px)') alone was letting
+   it fall through to the broken embedded path (the dock preview, Files)
+   that only a mouse ever proved reliable. (hover: none) and
+   (pointer: coarse) is the standard pairing for "primary input is a
+   finger," regardless of how wide that finger's screen is. Shared by
+   go() and openDock() so both redirects agree on what counts. */
+const isTouchNarrow = () => window.matchMedia('(max-width: 900px), (hover: none) and (pointer: coarse)').matches;
+
 function go(view) {
   /* Files and Wellbeing are each a whole separate app embedded in an
      iframe. Every fix aimed at getting a touch drag to reach inside that
@@ -2808,33 +2818,20 @@ function go(view) {
      way to test any further iframe-side theory against real hardware
      here, and "debe quedar sí o sí" isn't served by a fourth guess at
      the same mechanism. So: stop routing around it and remove it
-     instead, below the width where a side panel was ever the point.
-     A real navigation — leaving the iframe, leaving Khaslana's page
-     entirely for the one the phone is actually now on — has no iframe
-     for a touch drag to fail to reach, because there isn't one anymore.
-     Whatever was blocking it stops applying by construction, not by
-     another attempt at outsmarting it. The edge-swipe-back gesture (or
-     the browser's own back control) returns to Khaslana afterward. */
-  if ((view === 'files' || view === 'wellbeing') && window.matchMedia('(max-width: 900px)').matches) {
+     instead, for touch input generally. A real navigation — leaving the
+     iframe, leaving Khaslana's page entirely for the one the phone or
+     tablet is actually now on — has no iframe for a touch drag to fail
+     to reach, because there isn't one anymore. Whatever was blocking it
+     stops applying by construction, not by another attempt at
+     outsmarting it. The edge-swipe-back gesture (or the browser's own
+     back control) returns to Khaslana afterward. */
+  if ((view === 'files' || view === 'wellbeing') && isTouchNarrow()) {
     location.href = view === 'files' ? './ultraxfiles/' : './wellbeing/';
     return;
   }
   S.view = view; save();
   document.documentElement.style.setProperty('--acc', roomAccent(view));
   if (view !== 'atlas') { closeDock(); if (typeof graphPause === 'function') graphPause(); }
-  /* Files never got the scroll lock docked/reading both have — .uxf fills
-     the screen visually (negative margins pulling it past .main's padding)
-     but stays in normal document flow, position: relative, not fixed. The
-     page underneath was never actually told to stop scrolling, so a touch
-     drag over UltraXFiles had the same normally-scrollable body sitting
-     right behind it that the Atlas dock did before that same fix landed
-     there. See the html.files-open rule in app.css. */
-  document.documentElement.classList.toggle('files-open', view === 'files');
-  /* Same embedding shape as Files (position: relative, negative margins,
-     an iframe that fills the screen without ever leaving document flow) —
-     it needs the exact same lock, from the start, not after someone hits
-     the same bug on a phone. */
-  document.documentElement.classList.toggle('wellbeing-open', view === 'wellbeing');
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + view));
   $$('#nav button').forEach(b => b.classList.toggle('on', b.dataset.view === view));
   RENDER[view]?.();
@@ -3445,8 +3442,7 @@ $('#railCount').innerHTML = `<b>${left}</b> days<br>${Math.floor(left/7)} weeks,
    instead; Files and Wellbeing are one tap away either way. */
 {
   const bootView = RENDER[S.view] ? S.view : 'dawn';
-  const bootsIntoABounce = window.matchMedia('(max-width: 900px)').matches &&
-    (bootView === 'files' || bootView === 'wellbeing');
+  const bootsIntoABounce = isTouchNarrow() && (bootView === 'files' || bootView === 'wellbeing');
   go(bootsIntoABounce ? 'dawn' : bootView);
 }
 

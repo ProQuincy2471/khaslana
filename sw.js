@@ -21,7 +21,7 @@
    Bump CACHE_NAME when the shell itself changes shape (new files added
    to CORE, a renamed asset) — old caches are swept on activate. */
 
-const CACHE_NAME = 'khaslana-2026.08.19-e';
+const CACHE_NAME = 'khaslana-2026.08.20-a';
 const CORE = [
   './',
   './index.html',
@@ -102,6 +102,29 @@ const esDocumentoUXF = (url) =>
   url.pathname.includes('/ultraxfiles/') &&
   (url.pathname.endsWith('/ultraxfiles/') || url.pathname.endsWith('index.html'));
 
+/* `res.redirected` catches Access serving its own login page. It does NOT
+   catch the other way a wrong URL comes back disguised as a real file:
+   Cloudflare Pages answers a path that doesn't exist with Khaslana's own
+   index.html — a genuine 200, never redirected — which is exactly what
+   an un-normalized accented chapter URL used to hit before chapterURL()
+   started fixing it at request time. That shell response is small enough
+   that it looked, briefly, indistinguishable from "worked" to the code
+   above: right status, no redirect. Once a copy of it got cached under a
+   chapter's own URL, cache-first would hand back "the chapter" forever,
+   correct server or not — the one way a fixed bug can still look broken
+   on a device that cached the wrong answer once, at exactly the wrong
+   moment (a flaky connection, a deploy still propagating). Reading the
+   body for this one fingerprint before caching anything HTML-shaped
+   closes that permanently: nothing that looks like Khaslana itself gets
+   saved as if it were a chapter, no matter how it got served. */
+async function esCascaraDisfrazada(res) {
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('text/html')) return false;
+  try {
+    return (await res.clone().text()).includes('<title>KHASLANA</title>');
+  } catch { return false; }
+}
+
 /* The shell: the same files listed in CORE, minus UltraXFiles' own
    index.html (that one's matched by esDocumentoUXF above and handled the
    same way, network-first, but it needs its own fallback-to-itself logic
@@ -141,10 +164,14 @@ self.addEventListener('fetch', (e) => {
 
   e.respondWith(
     caches.match(e.request).then((cached) => {
-      const network = fetch(e.request).then((res) => {
-        /* Misma protección aquí: nunca reemplazar una copia buena en caché
-           — ni guardar la primera — con una redirección de login. */
-        if (res.ok && !res.redirected) caches.open(CACHE_NAME).then((cache) => cache.put(e.request, res.clone()));
+      const network = fetch(e.request).then(async (res) => {
+        /* Misma protección de redirección aquí, más la de la cáscara
+           disfrazada — esta rama es la que sirve los capítulos del Atlas
+           y la guía de Wellbeing, justo los archivos que un 200 con el
+           shell adentro podría envenenar bajo su propio nombre. */
+        if (res.ok && !res.redirected && !(await esCascaraDisfrazada(res))) {
+          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, res.clone()));
+        }
         return res;
       }).catch(() => cached);
       /* Cache-first for anything already saved — instant open — with the
