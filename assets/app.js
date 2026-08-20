@@ -1912,6 +1912,31 @@ function stepZoom(step) {
   toast(`Chapter at ${Math.round(readZoom() * 100)}%`);
 }
 
+/* Belt-and-suspenders under everything upstream of this (chapterURL()'s
+   own NFC fix, the service worker's guard against caching a disguised
+   shell): same-origin means a chapter iframe's own document is readable
+   the moment it loads, which makes this the one place that can catch
+   the wrong content regardless of *why* it was wrong — a stale copy
+   from before any of those fixes existed, a deploy still propagating, a
+   flaky connection, anything. If what actually loaded is Khaslana's own
+   shell instead of the chapter, retry once with a cache-busting query
+   string — a new URL is a new cache key, nothing stale can be sitting
+   under it — and only give up and call onFail if the retry also comes
+   back wrong. */
+function guardChapterFrame(frame, url, onFail) {
+  let attempt = 0;
+  const check = () => {
+    let title;
+    try { title = frame.contentDocument?.title; } catch { return; }   // cross-origin: not ours to guard
+    if (title !== 'KHASLANA') return;   // loaded fine
+    attempt++;
+    if (attempt > 1) { onFail?.(); return; }
+    frame.addEventListener('load', check, { once: true });
+    frame.src = url + (url.includes('?') ? '&' : '?') + '_r=' + Date.now();
+  };
+  frame.addEventListener('load', check, { once: true });
+}
+
 /* ── The dock ───────────────────────────────────────────────────────────
    One click on a card and you are reading. It used to take two — the card
    opened a panel of metadata, and the chapter was a second click behind a
@@ -1958,8 +1983,16 @@ function openDock(id, pane) {
     dockPane = 'info';
     $('#dockRead').innerHTML = '';
   } else if (!same || !$('#dockRead').firstChild) {
-    $('#dockRead').innerHTML =
-      `<iframe src="${esc(chapterURL(e))}" title="${esc(e.title)}" loading="lazy"></iframe>`;
+    const url = chapterURL(e);
+    $('#dockRead').innerHTML = `<iframe src="${esc(url)}" title="${esc(e.title)}" loading="lazy"></iframe>`;
+    guardChapterFrame($('#dockRead iframe'), url, () => {
+      $('#dockRead').innerHTML = `<div class="uxf-fail" style="position:static;height:100%">
+        <p><b>This chapter loaded wrong twice in a row.</b></p>
+        <p class="uxf-fail-sub">Not a caching problem on this device — a real network or deploy issue.
+           Try again in a moment, or open it in its own tab.</p>
+        <a class="btn sm" href="${esc(url)}" target="_blank" rel="noopener">Abrir aparte ↗</a>
+      </div>`;
+    });
   }
   $$('.dtab').forEach(b => b.classList.toggle('on', b.dataset.dtab === dockPane));
   $('.dock-tabs').classList.toggle('no-read', !CAN_READ_INLINE);
@@ -2048,7 +2081,11 @@ function openReader(id) {
   /* Sólo recargar si es otro capítulo — volver al mismo conserva tu scroll. */
   const frame = $('#rdFrame');
   const url = chapterURL(e);
-  if (frame.dataset.src !== url) { frame.src = url; frame.dataset.src = url; }
+  if (frame.dataset.src !== url) {
+    frame.src = url;
+    frame.dataset.src = url;
+    guardChapterFrame(frame, url, () => toast('This chapter loaded wrong twice in a row — try again in a moment.'));
+  }
   applyZoomAll();
 
   document.documentElement.classList.add('reading');
