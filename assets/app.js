@@ -3557,14 +3557,52 @@ if (buildStampSetupEl) buildStampSetupEl.textContent = BUILD;
 
    file:// has no service-worker support at all, so this only registers
    when the page is actually being served — abrir.command's local server,
-   or wherever it ends up deployed. Update flow rides the stale-tab banner
-   above rather than duplicating it: a new service worker installs
-   silently in the background (`skipWaiting` takes it live immediately,
-   `clients.claim` hands it existing tabs), and the next `checkForUpdate`
-   tick or focus event is what actually tells you about it.
-   ═══════════════════════════════════════════════════════════════════════ */
+   or wherever it ends up deployed.
+
+   The root cause behind a whole session's worth of "still stale after
+   the fix": a browser only checks a service worker's own script for
+   changes on navigation to a page in its scope. Khaslana is one document
+   that's never navigated away from — Dawn, Atlas, Setup are all the
+   same page, switched by JS — so on a device where the tab is just left
+   open, or the PWA is only ever backgrounded and reopened rather than
+   actually reloaded, the browser had *no trigger at all* to look at
+   sw.js again. Not a 90-second delay, not "eventually" — never, until an
+   actual reload happened. And CHECK_FOR_UPDATE's own fetch runs through
+   whatever service worker is currently in control: a stale one just
+   answers from its own stale logic, so the mechanism meant to detect
+   staleness was itself a casualty of the exact staleness it existed to
+   catch. That's the deadlock every earlier fix this session ran into
+   without knowing it — the code was right and still couldn't reach a
+   device that never re-checked for it.
+
+   registration.update() is the explicit call that does what navigation
+   would have — force the browser to refetch sw.js and compare it
+   byte-for-byte, independent of any page reload. Ticking it on the same
+   cadence as CHECK_FOR_UPDATE (and once on becoming visible again) means
+   a tab left open for days is never more than that interval away from
+   noticing a new service worker exists, which is what makes everything
+   downstream of it (network-first app.js, the stale-tab banner, even
+   "Forget this device's cache") actually reach a long-open tab instead
+   of arguing with a version of the SW that's stuck in the past. */
+let swRegistration = null;
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => { /* offline on first load: fine, just no SW yet */ });
+    navigator.serviceWorker.register('sw.js').then((reg) => {
+      swRegistration = reg;
+    }).catch(() => { /* offline on first load: fine, just no SW yet */ });
   });
+
+  /* skipWaiting + clients.claim (in sw.js) mean a new worker takes over
+     an already-open tab without waiting for it to close — this fires the
+     moment that happens. More reliable than the app.js text diff below,
+     which depends on the fetch reaching a fresh service worker in the
+     first place; this fires directly off the browser's own worker
+     lifecycle, nothing to be stale about. */
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (BOOT_SOURCE !== null) showUpdateBanner();   // ignore the very first controller taking over on a fresh install
+  });
+
+  const pokeForUpdate = () => swRegistration?.update().catch(() => {});
+  setInterval(pokeForUpdate, 90000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pokeForUpdate(); });
 }
