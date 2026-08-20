@@ -206,7 +206,7 @@ body::after {
   backdrop-filter: blur(20px);
 }
 
-.sigil { padding: 0 24px 22px; }
+.sigil { padding: 0 24px 22px; margin-bottom: 20px; border-bottom: 1px solid var(--line-2); }
 
 /* The seal, drawn crisp at a size where the construction actually reads. */
 .sigil-seal { width: 62px; height: 62px; margin-bottom: 14px; }
@@ -254,33 +254,6 @@ body::after {
   margin-top: 18px;
 }
 
-/* Coreflame in the rail — the flame is always in view. No border-top: the
-   seal, the name, the aspect picker and the flame are one identity block,
-   not two cards stacked with a seam between them. The bottom rule is what
-   actually needs to separate from the nav below. */
-.rail-flame {
-  margin: 0 24px 20px;
-  padding: 16px 0 16px;
-  border-bottom: 1px solid var(--line-2);
-  display: flex;
-  align-items: center;
-  gap: 13px;
-}
-.rail-flame canvas { flex-shrink: 0; }
-.rail-flame .rf-n {
-  font-family: var(--serif);
-  font-size: 30px;
-  line-height: 1;
-  color: var(--ember);
-}
-.rail-flame .rf-k {
-  font-family: var(--mono);
-  font-size: 8px;
-  letter-spacing: 0.19em;
-  text-transform: uppercase;
-  color: var(--dimmer);
-  margin-top: 4px;
-}
 
 .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; flex: 1; }
 
@@ -2670,7 +2643,7 @@ html.gated .gate-panel { transform: none; }
     background: rgba(5, 6, 13, 0.95);
     z-index: 70;
   }
-  .sigil, .rail-foot, .rail-flame { display: none; }
+  .sigil, .rail-foot { display: none; }
   /* the Glass floats above the bar instead of fighting it for room */
   .rail-glass.empty { display: none; }
   .rail-glass:not(.empty) {

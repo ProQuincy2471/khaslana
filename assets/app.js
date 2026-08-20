@@ -1684,7 +1684,6 @@ function renderDawn() {
     <div class="entry-sub" style="margin-top:7px">
       ${isMon ? 'Check the platform and log what opened' : `in ${away} ${away===1?'day':'days'} · Monday`}</div>`;
 
-  renderRailFlame(flame);
   renderDawnCal();
 }
 
@@ -1755,12 +1754,6 @@ function updateNavTags() {
   if (tc) tc.textContent = (j && journalFilled(j) > 0) ? 'written today' : 'journal';
 }
 
-function renderRailFlame(n) {
-  $('#rfN').textContent = n;
-  const k = $('#rfK');
-  if (k) k.textContent = aspect().streak;
-  drawMark($('#railFlame'), n, aspect().mark);
-}
 
 /* ═══════════════════════════════════════════════════════════════════════
    ATLAS
@@ -3398,7 +3391,6 @@ const motionLevel = () =>
 function applyMotion() {
   document.documentElement.dataset.motion = motionLevel();
   if (typeof SKY_RESTART === 'function') SKY_RESTART();
-  renderRailFlame(coreflame());
   spinRings();
 }
 
