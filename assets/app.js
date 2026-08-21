@@ -1926,9 +1926,19 @@ function stepZoom(step) {
 function guardChapterFrame(frame, url, onFail) {
   let attempt = 0;
   const check = () => {
-    let title;
-    try { title = frame.contentDocument?.title; } catch { return; }   // cross-origin: not ours to guard
-    if (title !== 'KHASLANA') return;   // loaded fine
+    let doc;
+    try { doc = frame.contentDocument; } catch { return; }   // cross-origin: not ours to guard (Access's own login page, say — a different, already-visible problem)
+    if (!doc) return;
+    /* Two independent signals, not one — the title alone missed a real
+       case: a fresh Cloudflare Access session redirecting through its own
+       login flow can transiently land back on Khaslana's shell with a
+       title that isn't a clean "KHASLANA" (a query string or hash still
+       attached, whitespace, whatever the redirect chain leaves behind).
+       #nav is Khaslana's own room list — no chapter's own HTML has an
+       element with that id — so it catches the shell by what it actually
+       *is*, not by a string that redirect noise can slip past. */
+    const looksLikeKhaslana = doc.title.includes('KHASLANA') || !!doc.getElementById('nav');
+    if (!looksLikeKhaslana) return;   // loaded fine
     attempt++;
     if (attempt > 1) { onFail?.(); return; }
     frame.addEventListener('load', check, { once: true });

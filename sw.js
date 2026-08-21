@@ -21,7 +21,7 @@
    Bump CACHE_NAME when the shell itself changes shape (new files added
    to CORE, a renamed asset) — old caches are swept on activate. */
 
-const CACHE_NAME = 'khaslana-2026.08.20-a';
+const CACHE_NAME = 'khaslana-2026.08.20-b';
 const CORE = [
   './',
   './index.html',
@@ -121,7 +121,15 @@ async function esCascaraDisfrazada(res) {
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('text/html')) return false;
   try {
-    return (await res.clone().text()).includes('<title>KHASLANA</title>');
+    const texto = await res.clone().text();
+    /* Dos señales, no una: el título solo no bastó en la práctica — un
+       redirect de Access que aterriza de vuelta en la cáscara puede
+       dejarla con algo pegado al título (una query, lo que sea) que ya
+       no es el string exacto "KHASLANA". id="nav" es la barra de salas
+       propia de Khaslana — ningún capítulo real trae ese id — así que
+       reconoce la cáscara por lo que de verdad es, no por una frase que
+       el ruido de una redirección puede alterar. */
+    return texto.includes('KHASLANA') && texto.includes('id="nav"');
   } catch { return false; }
 }
 
