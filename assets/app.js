@@ -2078,7 +2078,23 @@ function openDock(id, pane) {
   document.documentElement.classList.add('docked');
   $('#dock').dataset.id = id;
 }
-const closeDock = () => document.documentElement.classList.remove('docked');
+/* Same fix as closeReader() below, and the same reasoning: #dock stays
+   mounted off-screen (visibility:hidden, not display:none) so its close
+   animation can run, which means its own embedded chapter iframe kept
+   rendering in the background too. isTouchNarrow() sends touch input to
+   the reader instead, so this path is mouse/trackpad-only on a normal
+   laptop or desktop — but a 2-in-1 with a trackpad attached doesn't
+   always report (hover:none), so it can still land here on a touch
+   screen and hit the identical freeze. */
+function closeDock() {
+  document.documentElement.classList.remove('docked');
+  setTimeout(() => {
+    if (document.documentElement.classList.contains('docked')) return;
+    const iframe = $('#dockRead iframe');
+    if (iframe) iframe.src = 'about:blank';
+    $('#dock').dataset.id = '';
+  }, 550);
+}
 
 /* ── The Reader ──
    Chrome treats every local file as its own opaque origin, so a file:// page
