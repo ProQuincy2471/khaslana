@@ -1112,14 +1112,32 @@ const daysSince = (id) => {
    answers a missing path with Khaslana's own shell instead of a real
    404, what loaded in the chapter's place was Khaslana itself, nested
    inside its own reader. Normalizing to NFC here, once, fixes every
-   affected chapter without needing to touch the generated index. */
+   affected chapter without needing to touch the generated index.
+
+   One more layer on top of that, found the hard way: Cloudflare Pages
+   itself 308-redirects any request for a bare `.html` path to the
+   extension-less "clean" URL — and that redirect's own Location header
+   carries the target as raw UTF-8 bytes, NOT percent-encoded. HTTP
+   header values are Latin-1 by spec, so a browser decoding that header
+   reads each UTF-8 byte of an accented character as its own Latin-1
+   codepoint — "á" (bytes C3 A1) comes back as "Ã¡" — landing on a URL
+   that matches no real file. Cloudflare then answers *that* with
+   Khaslana's own shell instead of a 404, which is what actually made
+   "Adenocarcinoma gástrico" load Khaslana-inside-itself: not a caching
+   bug, not a stale service worker — a live Cloudflare redirect mangling
+   every accented chapter's URL on every single request, no matter how
+   correct the encoding was going in. The fix is to never let that
+   redirect fire at all: request the clean URL directly (Cloudflare
+   serves the same file at both; only the .html→clean-URL *hop* is
+   broken), by stripping the extension here before encoding. */
 const chapterURL = (e) => {
   if (e.rel) {
     const slash = e.rel.indexOf('/');
     if (slash < 0) return e.rel;
     try {
       const dir  = e.rel.slice(0, slash);
-      const name = decodeURIComponent(e.rel.slice(slash + 1)).normalize('NFC');
+      let name = decodeURIComponent(e.rel.slice(slash + 1)).normalize('NFC');
+      if (name.toLowerCase().endsWith('.html')) name = name.slice(0, -5);
       return dir + '/' + encodeURIComponent(name);
     } catch { return e.rel; }
   }
