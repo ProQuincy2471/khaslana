@@ -2134,7 +2134,28 @@ function refreshReaderState() {
   btn.style.color = STAGE[rec.stage].w >= 3 ? 'var(--ok)' : STAGE[rec.stage].w >= 1 ? 'var(--ember)' : '';
 }
 
-const closeReader = () => document.documentElement.classList.remove('reading');
+/* Closing the reader only ever toggled a CSS class — #reader stays
+   position:fixed and mounted with opacity:0 (that's what lets the close
+   animate and what keeps your scroll position if you come straight back
+   in). But #rdFrame's chapter — a few hundred KB of HTML, tables, and
+   inline SVGs — kept running off-screen too, indefinitely, since nothing
+   ever unloaded it. On a phone or tablet that's real ongoing layout and
+   compositing work fighting your next touch — a pinch-zoom, a tab
+   switch — for however long it takes the device to catch up, which is
+   exactly the "trabado, luego se descongela solo" freeze. Unloading the
+   frame a beat after the close transition ends (matching #reader's own
+   0.32s) frees that weight without touching the close animation itself
+   — and is skipped if you've already reopened the reader by then, so
+   flipping quickly between chapters still doesn't pay this cost. */
+function closeReader() {
+  document.documentElement.classList.remove('reading');
+  setTimeout(() => {
+    if (document.documentElement.classList.contains('reading')) return;
+    const frame = $('#rdFrame');
+    frame.src = 'about:blank';
+    frame.dataset.src = '';
+  }, 400);
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    PATH
