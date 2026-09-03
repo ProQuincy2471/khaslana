@@ -950,6 +950,14 @@ async function scanCodex(opts = {}) {
        index. <title>KHASLANA</title> only appears in that shell, never in
        a real listing, so it's the signal that this wasn't one. */
     if (body.includes('<title>KHASLANA</title>')) throw new Error('no listing on this host');
+    /* The other page that can land here instead of the real listing:
+       Cloudflare Access's own login page, served as a normal readable
+       200 when the session cookie has lapsed — fetch() follows that
+       redirect internally rather than surfacing it as one (see
+       guardarSiEsReal in sw.js). Caught by name for a clear message;
+       the "would remove almost everything" check below is what catches
+       whatever this list misses. */
+    if (body.includes('Cloudflare Access')) throw new Error('Access session needs refreshing');
     files = parseListing(body);
   } catch (err) {
     scanState = { status: 'error', found: CODEX.entries.length, added: 0, gone: 0,
@@ -962,6 +970,29 @@ async function scanCodex(opts = {}) {
   const cached = loadScanned();
   const fresh = files.filter(f => !known.has(f) && !cached[f]);
   const gone = CODEX.entries.filter(e => !files.includes(e.file)).map(e => e.file);
+
+  /* The <title>KHASLANA</title> check above catches one specific wrong
+     page — Cloudflare Pages' own SPA fallback — but it isn't the only
+     page that can land here instead of the real listing. A `fetch()`
+     without a still-valid Cloudflare Access session follows the
+     redirect internally and comes back a normal, readable 200 with
+     Access's own login page in the body (see guardarSiEsReal in sw.js
+     for the same behavior caught elsewhere) — a page with no chapter
+     links in it either, and no "KHASLANA" in its title to catch. Rather
+     than chase every page that might land here with its own signature,
+     this catches what all of them have in common: a real folder losing
+     essentially every chapter it had in one pass is not a plausible
+     outcome of chapters actually being renamed or removed. Losing that
+     much at once means the response wasn't the folder — an Access
+     session that needs refreshing, most likely — and applying it would
+     have been exactly today's "Atlas shows the chapters, then they
+     vanish and it says there are none" the moment this ran. */
+  if (CODEX.entries.length >= 5 && gone.length >= CODEX.entries.length * 0.8) {
+    scanState = { status: 'error', found: files.length, added: 0, gone: 0,
+      note: `The folder came back looking wrong (would have removed ${gone.length} of ${CODEX.entries.length} chapters) — showing the last built index instead. If this keeps happening, try reloading — your Cloudflare Access session may need refreshing.` };
+    renderScanStatus();
+    return scanState;
+  }
 
   /* Bring in anything already parsed on a previous visit. */
   for (const f of files) {
