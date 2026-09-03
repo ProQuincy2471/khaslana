@@ -295,10 +295,31 @@
               <path d="M4 4 8 8M12.5 3.5 8 8M3.5 12 8 8M12 12.5 8 8" stroke-width="0.9"/>
             </svg>
           </button>
+          <button class="vt" data-vt="escalafon" title="Escalafón — rank, XP, skills, achievements (Q/E, ?)">
+            <svg viewBox="0 0 16 16">
+              <path d="M8 1.4 9.6 5 13.5 5.5 10.6 8.1 11.4 12 8 10 4.6 12 5.4 8.1 2.5 5.5 6.4 5z"/>
+            </svg>
+          </button>
         </div>
       </div>
 
       <div class="codex-grid" id="codexGrid"></div>
+
+      <div class="codex-escalafon" id="codexEscalafon" hidden>
+        <p class="esc-base-note">Base del Escalafón — el rango y los logros ya corren de verdad, con lo que
+           Khaslana ya sabe de ti. Las habilidades y los controles de combate son la referencia lista para
+           cuando exista un banco de reactivos de verdad.</p>
+        <div class="esc-grid">
+          <div class="stack">
+            <div class="card" id="escXP"></div>
+            <div class="card" id="escAch"></div>
+          </div>
+          <div class="stack">
+            <div class="card" id="escSkills"></div>
+            <div class="card" id="escControls"></div>
+          </div>
+        </div>
+      </div>
 
       <div class="codex-graph" id="codexGraph" hidden>
         <canvas id="graphCanvas"></canvas>
@@ -334,6 +355,8 @@
         </div>
       </header>
       <div class="room-note" data-room="path"></div>
+
+      <div class="card esc-brief" id="escalafonBrief" style="margin-bottom:22px"></div>
 
       <div class="card" style="margin-bottom:22px;padding:0">
         <div class="constel-head" style="padding:20px 24px 12px">

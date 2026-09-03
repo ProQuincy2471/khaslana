@@ -1815,6 +1815,238 @@ function filteredTopics() {
     .sort((a, b) => q ? b.s - a.s : a.e.title.localeCompare(b.e.title, 'es'));
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   ESCALAFÓN — rank, XP, skills, achievements
+   ═══════════════════════════════════════════════════════════════════════
+
+   This is a base, not the feature: Khaslana has no question bank and no
+   combat engine, so there is nothing yet that "Contestar A/B/C/D" or
+   "Ojo Clínico" can actually do. What's real here is everything Khaslana
+   *can* already measure — chapter stage, confidence, logged trials, the
+   Coreflame streak — turned into one number, one rank ladder, and a set
+   of achievements that unlock honestly off of that. The skill tree and
+   the combat-specific key bindings are laid out as reference data, ready
+   to wire to a real signal the day a question bank exists, and marked
+   as such rather than faked.
+
+   XP is computed fresh every time, from state that already exists —
+   never its own stored counter. That means nothing to migrate, nothing
+   that can drift out of sync with a chapter you re-graded by hand, and
+   no double-counting to guard against. */
+
+/* The ladder — names and thresholds exactly as spec'd. */
+const RANKS = [
+  { id: 'estudiante', label: 'Estudiante',    xp: 0    },
+  { id: 'premip',     label: 'preMIP',        xp: 110  },
+  { id: 'mip1',       label: 'MIP1',          xp: 260  },
+  { id: 'mip2',       label: 'MIP2',          xp: 470  },
+  { id: 'pasante',    label: 'Pasante',       xp: 740  },
+  { id: 'r1',         label: 'R1',            xp: 1070 },
+  { id: 'r2',         label: 'R2',            xp: 1470 },
+  { id: 'r3',         label: 'R3',            xp: 1950 },
+  { id: 'r4',         label: 'R4',            xp: 2520 },
+  { id: 'r5',         label: 'R5',            xp: 3200 },
+  { id: 'r6',         label: 'R6',            xp: 4000 },
+  { id: 'r7',         label: 'R7',            xp: 5000 },
+  { id: 'adscrito',   label: 'Adscrito',      xp: 6300 },
+  { id: 'hibbert',    label: 'Dr. Hibbert',   xp: 6500 },
+  { id: 'dorian',     label: 'Dr. John Dorian', hint: 'el de Scrubs', xp: 7000 },
+];
+
+/* Points per existing signal. Tuned so working through the Atlas honestly
+   — reading, drilling, mastering, sitting trials, keeping the flame lit —
+   is what climbs the ladder, not any one shortcut. */
+function escalafonXP() {
+  let xp = 0;
+  for (const e of CODEX.entries) {
+    const r = topicRec(e.id);
+    xp += STAGE[r.stage].w * 15;
+    if (r.conf === 3) xp += 10;
+    else if (r.conf === 2) xp += 4;
+  }
+  for (const s of S.sims) xp += (s.right || 0) * 3;
+  xp += Math.min(coreflame(), 30) * 2;
+  return xp;
+}
+
+function rankProgress(xp) {
+  let cur = RANKS[0], next = null;
+  for (const r of RANKS) {
+    if (xp >= r.xp) cur = r; else { next = r; break; }
+  }
+  const span = next ? next.xp - cur.xp : 0;
+  const into = xp - cur.xp;
+  return { cur, next, into, span, pct: next ? Math.min(100, Math.round(into / span * 100)) : 100 };
+}
+
+/* Nine of fourteen check themselves against state Khaslana already has.
+   The other five are the ones that genuinely need a question bank —
+   "vencer un jefe", a perfect exam run — and stay honestly locked with
+   a note saying so, instead of being faked against a stand-in. */
+const ACHIEVEMENTS = [
+  { id: 'primera-victoria', icon: '🥇', label: 'Primera victoria', hint: 'Domina tu primer capítulo',
+    check: () => CODEX.entries.some(e => topicStage(e.id) === 'mastered') },
+  { id: 'impecable', icon: '✨', label: 'Impecable', hint: 'Un simulacro sin un solo fallo',
+    check: () => S.sims.some(s => s.total > 0 && s.right === s.total) },
+  { id: 'cazajefes', icon: '⚔️', label: 'Cazajefes', hint: 'Vence temas como "jefes" en el banco de reactivos',
+    locked: 'Pendiente del banco de reactivos' },
+  { id: 'terror-hospital', icon: '🏥', label: 'Terror del hospital', hint: 'Encadena victorias en combate',
+    locked: 'Pendiente del banco de reactivos' },
+  { id: 'jefe-servicio', icon: '🏆', label: 'Jefe de servicio', hint: 'Domina un área entera del hospital',
+    locked: 'Pendiente del banco de reactivos' },
+  { id: 'centenario', icon: '💯', label: 'Centenario', hint: '100 reactivos de simulacro contestados',
+    check: () => S.sims.reduce((a, s) => a + (s.total || 0), 0) >= 100 },
+  { id: 'medio-millar', icon: '📚', label: 'Medio millar', hint: '500 reactivos de simulacro contestados',
+    check: () => S.sims.reduce((a, s) => a + (s.total || 0), 0) >= 500 },
+  { id: 'maratonista', icon: '🏃', label: 'Maratonista', hint: 'Una sesión de estudio larga y sin cortes',
+    locked: 'Pendiente de medir la duración de una sesión' },
+  { id: 'en-racha', icon: '🔥', label: 'En racha', hint: '3 días seguidos con el Coreflame encendido',
+    check: () => coreflame() >= 3 },
+  { id: 'constancia', icon: '📅', label: 'Constancia', hint: '14 días seguidos con el Coreflame encendido',
+    check: () => coreflame() >= 14 },
+  { id: 'semana-guardia', icon: '🌙', label: 'Semana de guardia', hint: '7 días seguidos con el Coreflame encendido',
+    check: () => coreflame() >= 7 },
+  { id: 'listo-enarm', icon: '🎯', label: 'Listo para el ENARM', hint: 'Todos los capítulos del Atlas en pie',
+    check: () => CODEX.entries.length > 0 && CODEX.entries.every(e => isHeld(e.id)) },
+  { id: 'mision-cumplida', icon: '✅', label: 'Misión cumplida', hint: 'Todos los bloques de hoy, hechos',
+    check: () => { const st = dayStats(todayKey()); return st.total > 0 && st.pct === 100; } },
+  { id: 'misterio', icon: '❔', label: '¿??', hint: 'Un secreto. Aparecerá cuando lo encuentres.',
+    locked: true },
+];
+
+function achievementsState() {
+  return ACHIEVEMENTS.map(a => ({ ...a, unlocked: typeof a.check === 'function' ? !!a.check() : false }));
+}
+
+/* The skill tree exactly as spec'd — categories, node names, hints, and
+   unlock costs. There is no per-type XP yet (Diagnóstico vs. Tratamiento
+   reactivos don't exist to tell apart), so every node's progress is shown
+   against the same overall XP as a stand-in — labeled as one, not hidden. */
+const SKILL_TREE = [
+  { id: 'diagnostico', label: 'Diagnóstico', icon: '🔍', nodes: [
+    { label: 'Ojo Clínico',        kind: 'ACTIVA', xp: 0,    hint: 'En combate, una vez por batalla elimina 2 opciones incorrectas.' },
+    { label: 'Semiología Fina',    kind: 'PASIVA', xp: 3400, hint: 'Los reactivos de Diagnóstico te dan +50% de experiencia.' },
+    { label: 'Sabueso Diagnóstico', kind: 'PASIVA', xp: 6400, hint: 'Acertar un reactivo de Diagnóstico inflige 2 de daño al jefe (crítico).' },
+  ]},
+  { id: 'tratamiento', label: 'Tratamiento', icon: '💊', nodes: [
+    { label: 'Botiquín',           kind: 'PASIVA', xp: 0,     hint: 'Cada 4 aciertos seguidos recuperas 1 vida.' },
+    { label: 'Segunda Opinión',    kind: 'ACTIVA', xp: 3400,  hint: 'En combate, una vez por batalla blinda tu siguiente fallo (no pierdes vida).' },
+    { label: 'Dosis Certera',      kind: 'PASIVA', xp: 6400,  hint: 'Acertar un reactivo de Tratamiento inflige 2 de daño al jefe.' },
+    { label: 'El poder de Wuicho', kind: 'PASIVA', xp: 20000, hint: 'Empiezas cada combate con +2 vidas y Botiquín cura cada 3 aciertos seguidos (en vez de 4).' },
+  ]},
+];
+
+/* Keyboard reference — exactly the bindings spec'd. `live` marks what
+   actually does something in Khaslana today; everything else is laid
+   out for when a combat mode exists to bind it to. */
+const CONTROLS_KEYBOARD = [
+  { action: 'Contestar una opción',           keys: ['A', 'B', 'C', 'D'], alt: '1 – 4',                    live: false },
+  { action: 'Moverte / elegir jefe',          keys: ['←', '↑', '↓', '→'], alt: '+ Enter',                  live: false },
+  { action: 'Siguiente reactivo',             keys: ['Enter'],           alt: 'Espacio',                  live: false },
+  { action: 'Cambiar de pestaña',             keys: ['Q', 'E'],          alt: '1 – 7 fuera de combate',    live: true  },
+  { action: 'Ojo Clínico · Segunda Opinión',  keys: ['Q', 'S'],                                            live: false },
+  { action: 'Salir del caso / cerrar',        keys: ['Esc'],                                               live: true  },
+  { action: 'Sonido · esta ayuda',            keys: ['M', '?'],                                            live: 'help' },
+];
+const CONTROLS_GAMEPAD = [
+  { action: 'Moverte',                        keys: ['Cruceta o palanca izq.'] },
+  { action: 'Subir / bajar la página',        keys: ['Cruceta'], note: '(o palanca al no haber más botones)' },
+  { action: 'Elegir / atrás',                 keys: ['A / B'],   note: '(✕ / ○)' },
+  { action: 'Ojo Clínico · Segunda Opinión',  keys: ['X · Y'],   note: '(□ · △)' },
+  { action: 'Cambiar de pestaña',             keys: ['LB / RB'] },
+  { action: 'Siguiente',                      keys: ['Start'] },
+];
+
+const kbdRow = (keys) => keys.map(k => `<kbd>${esc(k)}</kbd>`).join(' / ');
+
+function renderEscalafon() {
+  const xp = escalafonXP();
+  const { cur, next, into, span, pct } = rankProgress(xp);
+  const ach = achievementsState();
+  const unlockedN = ach.filter(a => a.unlocked).length;
+
+  $('#escXP').innerHTML = `
+    <div class="esc-rank">
+      <div class="esc-rank-label">${esc(cur.label)}${cur.hint ? ` <span class="esc-rank-hint">— ${esc(cur.hint)}</span>` : ''}</div>
+      <div class="esc-rank-xp">${xp.toLocaleString('en-US')} XP</div>
+    </div>
+    <div class="bar esc-bar"><i style="width:${pct}%"></i></div>
+    <div class="esc-rank-next">${next
+      ? `${(span - into).toLocaleString('en-US')} XP para ${esc(next.label)}`
+      : 'El rango más alto del escalafón — no hay más arriba.'}</div>
+    <div class="esc-rank-ladder">${RANKS.map(r => `
+      <span class="esc-tick ${r.xp <= xp ? 'on' : ''} ${r.id === cur.id ? 'cur' : ''}" title="${esc(r.label)} · ${r.xp.toLocaleString('en-US')} XP"></span>`).join('')}
+    </div>`;
+
+  $('#escAch').innerHTML = `
+    <div class="dock-sec">Logros · ${unlockedN} / ${ACHIEVEMENTS.length}</div>
+    <div class="esc-ach-grid">${ach.map(a => `
+      <div class="esc-ach ${a.unlocked ? 'on' : ''}" title="${esc(a.hint)}${!a.unlocked && a.locked && typeof a.locked === 'string' ? ' — ' + esc(a.locked) : ''}">
+        <div class="esc-ach-icon">${a.unlocked ? a.icon : '🔒'}</div>
+        <div class="esc-ach-label">${a.id === 'misterio' && !a.unlocked ? '¿??' : esc(a.label)}</div>
+      </div>`).join('')}
+    </div>`;
+
+  $('#escSkills').innerHTML = `
+    <div class="dock-sec">Habilidades</div>
+    <p class="esc-note">Sin banco de reactivos todavía no hay XP por tipo (Diagnóstico vs. Tratamiento) que
+       repartir — cada nodo se mide contra tu XP general como aproximación, hasta que exista.</p>
+    ${SKILL_TREE.map(cat => `
+      <div class="esc-skill-cat">
+        <div class="esc-skill-cat-head"><span>${cat.icon}</span> ${esc(cat.label)}</div>
+        ${cat.nodes.map(n => {
+          const unlocked = xp >= n.xp;
+          return `
+          <div class="esc-skill-node ${unlocked ? 'on' : ''}">
+            <div class="esc-skill-top">
+              <span class="esc-skill-name">${esc(n.label)}</span>
+              <span class="pill ${n.kind === 'ACTIVA' ? 'gold' : ''}" style="font-size:8.5px">${n.kind}</span>
+              ${unlocked ? '<span class="esc-skill-check">✓</span>' : `<span class="esc-skill-cost">${n.xp.toLocaleString('en-US')} XP</span>`}
+            </div>
+            <div class="esc-skill-hint">${esc(n.hint)}</div>
+          </div>`;
+        }).join('')}
+      </div>`).join('')}`;
+
+  $('#escControls').innerHTML = `
+    <div class="dock-sec">Controles</div>
+    <p class="esc-note">También puedes jugar todo con el ratón o el dedo, como siempre. Lo marcado
+       <span class="esc-live-dot"></span> ya funciona en Khaslana hoy — el resto queda listo para
+       cuando exista un modo de combate real.</p>
+    <div class="esc-controls-table">${CONTROLS_KEYBOARD.map(c => `
+      <div class="esc-ctrl-row ${c.live === true ? 'live' : ''}">
+        <span class="esc-ctrl-action">${c.live ? '<span class="esc-live-dot"></span>' : ''}${esc(c.action)}</span>
+        <span class="esc-ctrl-keys">${kbdRow(c.keys)}${c.alt ? ` <span class="esc-ctrl-alt">o ${esc(c.alt)}</span>` : ''}</span>
+      </div>`).join('')}
+    </div>
+    <div class="dock-sec">Control (Xbox / PlayStation)</div>
+    <div class="esc-controls-table">${CONTROLS_GAMEPAD.map(c => `
+      <div class="esc-ctrl-row">
+        <span class="esc-ctrl-action">${esc(c.action)}</span>
+        <span class="esc-ctrl-keys">${kbdRow(c.keys)}${c.note ? ` <span class="esc-ctrl-alt">${esc(c.note)}</span>` : ''}</span>
+      </div>`).join('')}
+    </div>`;
+}
+
+/* Path's own compact readout — just enough to see where you stand
+   without leaving Path, with a way back into the full view in Atlas. */
+function renderEscalafonBrief() {
+  const el = $('#escalafonBrief');
+  if (!el) return;
+  const xp = escalafonXP();
+  const { cur, next, into, span, pct } = rankProgress(xp);
+  el.innerHTML = `
+    <div class="esc-brief-top">
+      <div>
+        <div class="entry-sub" style="margin-bottom:4px">Escalafón</div>
+        <div class="esc-brief-rank">${esc(cur.label)}</div>
+      </div>
+      <button class="btn sm ghost" data-go-escalafon>Ver Escalafón →</button>
+    </div>
+    <div class="bar esc-bar"><i style="width:${pct}%"></i></div>
+    <div class="esc-rank-next">${xp.toLocaleString('en-US')} XP${next ? ` · ${(span - into).toLocaleString('en-US')} para ${esc(next.label)}` : ' · rango más alto'}</div>`;
+}
+
 function renderAtlas() {
   const counts = {};
   for (const e of CODEX.entries) counts[e.area] = (counts[e.area] || 0) + 1;
@@ -1846,6 +2078,12 @@ function renderAtlas() {
   $$('.vt', $('#viewToggle')).forEach(b => b.classList.toggle('on', b.dataset.vt === codexView));
   $('#codexGrid').hidden = codexView !== 'list';
   $('#codexGraph').hidden = codexView !== 'graph';
+  $('#codexEscalafon').hidden = codexView !== 'escalafon';
+  if (codexView === 'escalafon') {
+    renderEscalafon();
+    $('#tagAtlas').textContent = CODEX.entries.length;
+    return;
+  }
   if (codexView === 'graph') {
     renderGraphView(new Set(list.map(x => x.e.id)));
     $('#tagAtlas').textContent = CODEX.entries.length;
@@ -2178,6 +2416,7 @@ function closeReader() {
    ═══════════════════════════════════════════════════════════════════════ */
 
 function renderPath() {
+  renderEscalafonBrief();
   const exam = parseKey(S.examDate);
   const thisMon = keyOf(mondayOf(new Date()));
   const rows = [];
@@ -3110,9 +3349,12 @@ document.addEventListener('click', (ev) => {
   const zb = t.closest('.zoomer button[data-zoom]');
   if (zb) return stepZoom(+zb.dataset.zoom);
 
-  /* Atlas: List / Graph */
+  /* Atlas: List / Graph / Escalafón */
   const vt = t.closest('.vt[data-vt]');
   if (vt) { codexView = vt.dataset.vt; return renderAtlas(); }
+
+  /* Path's Escalafón brief jumps straight to the full one, in Atlas */
+  if (t.closest('[data-go-escalafon]')) { codexView = 'escalafon'; return go('atlas'); }
 
   const gz = t.closest('.zoomer button[data-gz]');
   if (gz) return graphZoomStep(+gz.dataset.gz);
@@ -3461,6 +3703,23 @@ document.addEventListener('keydown', (ev) => {
   const n = +ev.key;
   if (n >= 1 && n <= VIEWS.length) return go(VIEWS[n-1]);
   if (ev.key === '/') { ev.preventDefault(); go('atlas'); setTimeout(() => $('#codexSearch').focus(), 50); }
+
+  /* Escalafón's own reference: "Cambiar de pestaña — Q/E" is real here,
+     cycling Atlas's List/Graph/Escalafón toggle the same way 1–7 already
+     switch rooms. "?" jumps straight to the Controles panel — the one
+     binding in that reference sheet that's genuinely just "open help". */
+  if ((ev.key === 'q' || ev.key === 'e') && S.view === 'atlas' && !document.documentElement.classList.contains('docked')) {
+    const order = ['list', 'graph', 'escalafon'];
+    const i = order.indexOf(codexView);
+    codexView = order[(i + (ev.key === 'e' ? 1 : order.length - 1)) % order.length];
+    return renderAtlas();
+  }
+  if (ev.key === '?') {
+    ev.preventDefault();
+    codexView = 'escalafon';
+    go('atlas');
+    setTimeout(() => $('#escControls')?.scrollIntoView({ block: 'start', behavior: motionLevel() === 'still' ? 'instant' : 'smooth' }), 50);
+  }
 });
 
 /* Redraw the canvases when the layout changes under them */

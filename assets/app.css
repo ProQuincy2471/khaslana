@@ -1061,6 +1061,71 @@ kbd {
 .vt.on { color: var(--acc); background: color-mix(in srgb, var(--acc) 14%, transparent); }
 .vt + .vt { border-left: 1px solid var(--line); }
 
+/* ── Escalafón ─────────────────────────────────────────────────────────
+   Rank, XP, achievements: real, computed off state Khaslana already has.
+   Skills and combat controls: reference data for a question bank that
+   doesn't exist yet — same visual language as the rest of Atlas, just
+   quieter, since half of it is a promise rather than a working feature. */
+.esc-base-note {
+  font-size: 12px;
+  color: var(--faint);
+  line-height: 1.7;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line-2);
+}
+.esc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+@media (max-width: 900px) { .esc-grid { grid-template-columns: 1fr; } }
+
+.esc-rank { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.esc-rank-label { font-family: var(--serif); font-size: 22px; color: var(--paper); }
+.esc-rank-hint { font-family: var(--sans); font-size: 12px; color: var(--faint); }
+.esc-rank-xp { font-family: var(--mono); font-size: 12px; color: var(--acc); letter-spacing: 0.04em; flex-shrink: 0; }
+.esc-bar { height: 4px; border-radius: 2px; }
+.esc-bar > i { background: var(--acc); box-shadow: 0 0 10px color-mix(in srgb, var(--acc) 50%, transparent); }
+.esc-rank-next { font-size: 11.5px; color: var(--faint); margin-top: 8px; }
+.esc-rank-ladder { display: flex; gap: 3px; margin-top: 14px; flex-wrap: wrap; }
+.esc-tick { width: 8px; height: 8px; border-radius: 50%; background: var(--line); border: 1px solid var(--line); }
+.esc-tick.on { background: color-mix(in srgb, var(--acc) 55%, transparent); border-color: transparent; }
+.esc-tick.cur { background: var(--acc); box-shadow: 0 0 6px color-mix(in srgb, var(--acc) 70%, transparent); }
+
+.esc-ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+.esc-ach {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 12px 6px; text-align: center;
+  border: 1px solid var(--line-2); border-radius: 3px;
+  opacity: 0.5; transition: all 0.2s var(--ease);
+}
+.esc-ach.on { opacity: 1; border-color: color-mix(in srgb, var(--gold) 40%, transparent); background: rgba(232, 200, 138, 0.05); }
+.esc-ach-icon { font-size: 20px; line-height: 1; }
+.esc-ach-label { font-size: 9.5px; letter-spacing: 0.02em; color: var(--dim); line-height: 1.3; }
+.esc-ach.on .esc-ach-label { color: var(--gold); }
+
+.esc-note { font-size: 11.5px; color: var(--faint); line-height: 1.7; margin: -4px 0 14px; }
+.esc-skill-cat { margin-top: 6px; }
+.esc-skill-cat + .esc-skill-cat { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-2); }
+.esc-skill-cat-head { display: flex; align-items: center; gap: 8px; font-family: var(--serif); font-size: 16px; color: var(--paper); margin-bottom: 10px; }
+.esc-skill-node { padding: 10px 0; border-bottom: 1px solid var(--line-2); }
+.esc-skill-node:last-child { border-bottom: 0; }
+.esc-skill-node.on .esc-skill-name { color: var(--paper); }
+.esc-skill-top { display: flex; align-items: center; gap: 8px; }
+.esc-skill-name { font-size: 13px; color: var(--dim); flex: 1; }
+.esc-skill-check { color: var(--ok); font-size: 13px; }
+.esc-skill-cost { font-family: var(--mono); font-size: 9.5px; color: var(--faint); letter-spacing: 0.06em; }
+.esc-skill-hint { font-size: 11px; color: var(--faint); line-height: 1.6; margin-top: 4px; }
+
+.esc-live-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--ok); margin-right: 7px; vertical-align: middle; }
+.esc-controls-table { display: flex; flex-direction: column; }
+.esc-ctrl-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line-2); }
+.esc-ctrl-row:last-child { border-bottom: 0; }
+.esc-ctrl-row.live .esc-ctrl-action { color: var(--paper); }
+.esc-ctrl-action { font-size: 12.5px; color: var(--dim); display: flex; align-items: center; }
+.esc-ctrl-keys { flex-shrink: 0; text-align: right; }
+.esc-ctrl-alt { font-size: 10.5px; color: var(--faint); margin-left: 4px; }
+
+.esc-brief-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.esc-brief-rank { font-family: var(--serif); font-size: 19px; color: var(--paper); }
+
 /* ── The constellation ──────────────────────────────────────────────────
    Breaks out of .main's max-width via negative margins — a graph wants
    the room a text column doesn't. */
